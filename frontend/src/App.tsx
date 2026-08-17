@@ -10,10 +10,12 @@ import { NotificationsPage } from "./pages/NotificationsPage";
 import { MorePage } from "./pages/MorePage";
 import { ErrorText } from "./components/ui";
 import { api, clearTokens, getAccessToken } from "./lib/api";
+import { closeTopScreen } from "./lib/backStack";
 import { useProperty, usePropertyOptions } from "./lib/data";
 import type { NavFocus } from "./lib/notificationNav";
 import { tabFromFocus } from "./lib/notificationNav";
 import { setupPushNotifications } from "./lib/push";
+import { useHardwareBack } from "./lib/useHardwareBack";
 import type { Notification, Tab, User } from "./types";
 import "./index.css";
 
@@ -57,6 +59,7 @@ export default function App() {
 
 function AppShell({ user, onLogout }: { user: User; onLogout: () => void }) {
   const [tab, setTab] = useState<Tab>("inicio");
+  const [tabHistory, setTabHistory] = useState<Tab[]>([]);
   const [optionsKey, setOptionsKey] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -96,6 +99,36 @@ function AppShell({ user, onLogout }: { user: User; onLogout: () => void }) {
 
   const clearFocus = useCallback(() => setNavFocus(null), []);
 
+  const goToTab = useCallback(
+    (next: Tab) => {
+      if (next === tab) return;
+      setTabHistory((history) => [...history, tab]);
+      setTab(next);
+    },
+    [tab],
+  );
+
+  /**
+   * Atrás cierra primero la pantalla abierta, después desanda las pestañas y
+   * por último vuelve a Inicio. Recién ahí deja que Android mande la app al
+   * fondo en vez de cerrarla.
+   */
+  const handleBack = useCallback(() => {
+    if (closeTopScreen()) return true;
+    if (tabHistory.length > 0) {
+      setTab(tabHistory[tabHistory.length - 1]!);
+      setTabHistory((history) => history.slice(0, -1));
+      return true;
+    }
+    if (tab !== "inicio") {
+      setTab("inicio");
+      return true;
+    }
+    return false;
+  }, [tab, tabHistory]);
+
+  useHardwareBack(handleBack);
+
   const focusReady =
     !navFocus?.propertyId || navFocus.propertyId === selectedId;
 
@@ -104,7 +137,7 @@ function AppShell({ user, onLogout }: { user: User; onLogout: () => void }) {
       setSelectedId(focus.propertyId);
     }
     setNavFocus(focus);
-    setTab(tabFromFocus(focus));
+    goToTab(tabFromFocus(focus));
   }
 
   async function reloadAll() {
@@ -116,8 +149,8 @@ function AppShell({ user, onLogout }: { user: User; onLogout: () => void }) {
     <div className="min-h-dvh bg-sand-100 pb-24">
       <AppHeader
         unread={unread}
-        onOpenNotifications={() => setTab("avisos")}
-        onOpenProfile={() => setTab("mas")}
+        onOpenNotifications={() => goToTab("avisos")}
+        onOpenProfile={() => goToTab("mas")}
       />
 
       <div className="mx-auto -mt-11 max-w-3xl space-y-5 px-4">
@@ -131,7 +164,7 @@ function AppShell({ user, onLogout }: { user: User; onLogout: () => void }) {
 
         <main>
           {tab === "inicio" && (
-            <HomePage property={property} loading={loading} onNavigate={setTab} />
+            <HomePage property={property} loading={loading} onNavigate={goToTab} />
           )}
           {tab === "facturas" && (
             <BillingPage
@@ -172,9 +205,9 @@ function AppShell({ user, onLogout }: { user: User; onLogout: () => void }) {
               user={user}
               buildings={buildings}
               property={property}
-                    reloadProperty={reload}
-                    reloadOptions={() => setOptionsKey((k) => k + 1)}
-                    onSelectProperty={setSelectedId}
+              reloadProperty={reload}
+              reloadOptions={() => setOptionsKey((k) => k + 1)}
+              onSelectProperty={setSelectedId}
               onLogout={onLogout}
               focusSheet={
                 focusReady && navFocus?.tab === "mas" ? navFocus.sheet : null
@@ -185,7 +218,7 @@ function AppShell({ user, onLogout }: { user: User; onLogout: () => void }) {
         </main>
       </div>
 
-      <BottomNav tab={tab} unread={unread} onChange={setTab} />
+      <BottomNav tab={tab} unread={unread} onChange={goToTab} />
     </div>
   );
 }

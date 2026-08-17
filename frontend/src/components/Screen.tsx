@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useBackClosable } from "../lib/backStack";
 import { ChevronLeftIcon } from "./icons";
 
 export function Screen({
@@ -10,6 +11,8 @@ export function Screen({
   onClose: () => void;
   children: ReactNode;
 }) {
+  useBackClosable(onClose);
+
   return (
     <div className="fixed inset-0 z-30 overflow-y-auto bg-sand-100">
       <div className="safe-top sticky top-0 z-10 border-b border-sand-200 bg-sand-100/95 backdrop-blur">
