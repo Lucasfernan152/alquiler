@@ -53,29 +53,34 @@ export function PullToRefresh({
     }
   }
 
-  const height = refreshing ? 44 : pull;
   const progress = Math.min(pull / THRESHOLD, 1);
+  const visible = refreshing || pull > 0;
+  // El indicador va flotando sobre el contenido: la cabecera se superpone con
+  // margen negativo y taparía cualquier cosa que insertemos en el flujo.
+  const offset = refreshing ? 64 : 8 + pull * 0.6;
 
   return (
     <div onTouchStart={start} onTouchMove={move} onTouchEnd={end} onTouchCancel={end}>
       <div
-        className="pointer-events-none flex items-end justify-center overflow-hidden"
+        aria-hidden={!visible}
+        className="safe-top pointer-events-none fixed inset-x-0 top-0 z-40 flex justify-center"
         style={{
-          height,
-          transition: pull === 0 ? "height 200ms ease-out" : undefined,
+          transform: `translateY(${visible ? offset : -16}px)`,
+          opacity: visible ? 1 : 0,
+          transition: pull === 0 ? "transform 220ms ease-out, opacity 220ms" : undefined,
         }}
       >
-        <div className="pb-2">
+        <span className="flex size-10 items-center justify-center rounded-full bg-white shadow-float">
           <Spinner
             spinning={refreshing}
-            className="size-6"
+            className="size-5"
             style={
               refreshing
                 ? undefined
-                : { opacity: progress, transform: `rotate(${pull * 3}deg)` }
+                : { opacity: 0.35 + progress * 0.65, transform: `rotate(${pull * 3}deg)` }
             }
           />
-        </div>
+        </span>
       </div>
       {children}
     </div>

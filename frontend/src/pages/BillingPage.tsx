@@ -354,7 +354,8 @@ export function BillingPage({
                     </Button>
                     <Button
                       block
-                      disabled={busy || !canNotify}
+                      loading={busy}
+                      disabled={!canNotify}
                       onClick={() => run(() => api.markPeriodReady(period.id))}
                     >
                       Avisar al inquilino
@@ -432,7 +433,7 @@ export function BillingPage({
                     <div className="mt-3 flex gap-2">
                       <Button
                         size="sm"
-                        disabled={busy}
+                        loading={busy}
                         onClick={() =>
                           run(() => api.reviewPayment(payment.id, { status: "approved" }))
                         }
@@ -442,7 +443,7 @@ export function BillingPage({
                       <Button
                         size="sm"
                         variant="secondary"
-                        disabled={busy}
+                        loading={busy}
                         onClick={() =>
                           run(() =>
                             api.reviewPayment(payment.id, {
@@ -524,7 +525,7 @@ export function BillingPage({
                   onChange={(e) => setInvoiceFile(e.target.files?.[0] ?? null)}
                 />
               </Field>
-              <Button block disabled={busy}>
+              <Button block loading={busy}>
                 Guardar factura
               </Button>
             </form>
@@ -558,7 +559,7 @@ export function BillingPage({
                   onChange={(e) => setPayFile(e.target.files?.[0] ?? null)}
                 />
               </Field>
-              <Button block disabled={busy}>
+              <Button block loading={busy}>
                 Enviar al dueño
               </Button>
             </form>

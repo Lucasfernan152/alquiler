@@ -19,6 +19,22 @@ function Svg({ children, ...props }: IconProps) {
   );
 }
 
+export const EyeIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z" />
+    <circle cx="12" cy="12" r="3" />
+  </Svg>
+);
+
+export const EyeOffIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M10.6 6.1A8.6 8.6 0 0 1 12 6c6 0 9.5 6 9.5 6a15.8 15.8 0 0 1-3.4 4" />
+    <path d="M6.3 7.7A15.6 15.6 0 0 0 2.5 12S6 18 12 18a9 9 0 0 0 4-.9" />
+    <path d="m10 10a2.8 2.8 0 0 0 4 4" />
+    <path d="m3.5 3.5 17 17" />
+  </Svg>
+);
+
 export const HomeIcon = (p: IconProps) => (
   <Svg {...p}>
     <path d="M3.5 10.5 12 4l8.5 6.5" />

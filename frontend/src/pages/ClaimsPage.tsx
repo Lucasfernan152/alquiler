@@ -247,7 +247,7 @@ export function ClaimsPage({
                   onChange={(e) => setPhoto(e.target.files?.[0] ?? null)}
                 />
               </Field>
-              <Button block disabled={busy}>
+              <Button block loading={busy}>
                 Enviar reclamo
               </Button>
             </form>
@@ -311,12 +311,12 @@ export function ClaimsPage({
                 <Button
                   variant="secondary"
                   block
-                  disabled={busy}
+                  loading={busy}
                   onClick={() => answer(selected, "in_progress")}
                 >
                   Envío un técnico
                 </Button>
-                <Button block disabled={busy} onClick={() => answer(selected, "resolved")}>
+                <Button block loading={busy} onClick={() => answer(selected, "resolved")}>
                   Marcar resuelto
                 </Button>
               </div>
@@ -340,12 +340,12 @@ export function ClaimsPage({
                 <Button
                   variant="secondary"
                   block
-                  disabled={busy}
+                  loading={busy}
                   onClick={() => tenantReopen(selected)}
                 >
                   No se solucionó
                 </Button>
-                <Button block disabled={busy} onClick={() => tenantResolve(selected)}>
+                <Button block loading={busy} onClick={() => tenantResolve(selected)}>
                   Quedó resuelto
                 </Button>
               </div>
@@ -371,7 +371,7 @@ export function ClaimsPage({
                 className="mt-3"
                 variant="secondary"
                 block
-                disabled={busy}
+                loading={busy}
                 onClick={() => tenantReopen(selected)}
               >
                 Reabrir reclamo

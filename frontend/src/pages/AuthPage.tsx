@@ -2,7 +2,13 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import { ApiError, api, setTokens } from "../lib/api";
 import { KeyIcon } from "../components/icons";
-import { Button, ErrorText, Field, inputClass } from "../components/ui";
+import {
+  Button,
+  ErrorText,
+  Field,
+  PasswordInput,
+  inputClass,
+} from "../components/ui";
 import type { User } from "../types";
 
 export function AuthPage({ onAuth }: { onAuth: (user: User) => void }) {
@@ -79,21 +85,22 @@ export function AuthPage({ onAuth }: { onAuth: (user: User) => void }) {
               />
             </Field>
             <Field label="Contraseña">
-              <input
-                className={inputClass}
-                type="password"
+              <PasswordInput
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={setPassword}
                 placeholder="Mínimo 6 caracteres"
                 minLength={6}
                 required
+                autoComplete={
+                  mode === "login" ? "current-password" : "new-password"
+                }
               />
             </Field>
 
             <ErrorText>{error}</ErrorText>
 
-            <Button block disabled={loading} className="mt-1">
-              {loading ? "Esperá…" : mode === "login" ? "Entrar" : "Crear cuenta"}
+            <Button block loading={loading} className="mt-1">
+              {mode === "login" ? "Entrar" : "Crear cuenta"}
             </Button>
           </form>
 

@@ -159,6 +159,8 @@ function AppShell({ user, onLogout }: { user: User; onLogout: () => void }) {
   // Mientras no tengamos los datos de la propiedad elegida, spinner: mostrar lo
   // de la propiedad anterior confunde más que esperar.
   const waitingForContent = optionsLoading || stale || (loading && !property);
+  /** Refresco con contenido ya en pantalla: avisamos sin taparlo. */
+  const backgroundBusy = loading && !waitingForContent;
 
   return (
     <div className="min-h-dvh bg-sand-100 pb-24">
@@ -246,6 +248,15 @@ function AppShell({ user, onLogout }: { user: User; onLogout: () => void }) {
           </main>
         </div>
       </PullToRefresh>
+
+      {backgroundBusy && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-24 z-40 flex justify-center">
+          <span className="flex items-center gap-2 rounded-full bg-ink-900/85 px-3.5 py-2 text-[13px] font-medium text-white shadow-float">
+            <Spinner className="size-3.5 border-white/40 border-t-white" />
+            Actualizando…
+          </span>
+        </div>
+      )}
 
       <BottomNav tab={tab} unread={unread} onChange={goToTab} />
     </div>

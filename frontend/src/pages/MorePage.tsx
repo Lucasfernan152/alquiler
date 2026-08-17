@@ -380,7 +380,7 @@ export function MorePage({
                   onChange={(e) => setBuildingCity(e.target.value)}
                 />
               </Field>
-              <Button block disabled={busy}>
+              <Button block loading={busy}>
                 Guardar cambios
               </Button>
             </form>
@@ -416,7 +416,7 @@ export function MorePage({
                   value={newUnit}
                   onChange={(e) => setNewUnit(e.target.value)}
                 />
-                <Button variant="secondary" disabled={busy} className="shrink-0">
+                <Button variant="secondary" loading={busy} className="shrink-0">
                   Agregar
                 </Button>
               </form>
@@ -454,7 +454,7 @@ export function MorePage({
                   placeholder="3"
                 />
               </Field>
-              <Button block disabled={busy}>
+              <Button block loading={busy}>
                 Guardar cambios
               </Button>
             </form>
@@ -520,7 +520,7 @@ export function MorePage({
                   required
                 />
               </Field>
-              <Button block disabled={busy}>
+              <Button block loading={busy}>
                 Crear edificio
               </Button>
             </form>
@@ -550,7 +550,7 @@ export function MorePage({
                   required
                 />
               </Field>
-              <Button block disabled={busy}>
+              <Button block loading={busy}>
                 Agregar unidad
               </Button>
             </form>
@@ -692,7 +692,7 @@ export function MorePage({
                   onChange={(e) => setTenantShare(Number(e.target.value))}
                 />
               </Field>
-              <Button block disabled={busy}>
+              <Button block loading={busy}>
                 Asignar
               </Button>
             </form>
@@ -773,7 +773,7 @@ export function MorePage({
                     required
                   />
                 </Field>
-                <Button block disabled={busy}>
+                <Button block loading={busy}>
                   Guardar contacto
                 </Button>
               </form>

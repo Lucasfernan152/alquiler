@@ -184,7 +184,7 @@ export function ContractForm({ contract, requiredTypes, busy, onSubmit }: Props)
           onChange={(e) => setFile(e.target.files?.[0] ?? null)}
         />
       </Field>
-      <Button block disabled={busy}>
+      <Button block loading={busy}>
         {contract ? "Guardar cambios" : "Guardar contrato"}
       </Button>
     </form>
