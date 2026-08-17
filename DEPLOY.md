@@ -136,6 +136,21 @@ cd android
 
 APK: `android/app/build/outputs/apk/debug/app-debug.apk`
 
+### Push nativo (opcional, apagado por defecto)
+
+Sin `frontend/android/app/google-services.json` el registro contra FCM lanza una
+excepción nativa que cierra la app, así que el push arranca deshabilitado. Los
+avisos igual se ven dentro de la app.
+
+Para prenderlo:
+
+1. Creá un proyecto en [Firebase](https://console.firebase.google.com), agregá
+   una app Android con el package `com.alquiler.app` y bajá `google-services.json`
+   a `frontend/android/app/`.
+2. Agregá `VITE_PUSH_ENABLED=true` a `frontend/.env.production`.
+3. Cargá la service account de Firebase en la env `FIREBASE_SERVICE_ACCOUNT` del
+   proyecto API y rebuildeá el APK.
+
 ---
 
 ## Checklist rápido si algo falla
@@ -145,6 +160,8 @@ APK: `android/app/build/outputs/apk/debug/app-debug.apk`
 - Error de Prisma / DB → `DATABASE_URL` con `sslmode=require` y `npx prisma db push` corrido.
 - Upload falla → falta `BLOB_READ_WRITE_TOKEN` o el archivo pesa más de ~4 MB (límite Hobby).
 - Front llama a localhost → falta `VITE_API_URL` en el proyecto web (hay que redeployar después de setearla).
+- La app Android no loguea → el WebView usa el origen `https://localhost`; ya está permitido en el backend, revisá que el API esté redeployado.
+- La app Android se cierra al abrirla después del login → `VITE_PUSH_ENABLED=true` sin `google-services.json`.
 
 ---
 
