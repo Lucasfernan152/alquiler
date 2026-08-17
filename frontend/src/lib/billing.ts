@@ -1,4 +1,4 @@
-import type { Property } from "../types";
+import type { Property, Tenancy } from "../types";
 
 export function rentOf(property: Property | null | undefined) {
   return property?.contracts?.[0]?.rentAmount ?? 0;
@@ -26,16 +26,36 @@ export function splitsByPercentage(property: Property | null | undefined) {
   return property?.billSplitMode === "split_by_percentage";
 }
 
+export type ShareParty = {
+  tenancyId: string;
+  tenantId: string;
+  name: string;
+  sharePercentage: number;
+};
+
+/** Inquilinos activos con su % de las facturas. */
+export function shareParties(property: Property | null | undefined): ShareParty[] {
+  return (property?.tenancies ?? [])
+    .filter((t) => t.active !== false)
+    .map((t: Tenancy) => ({
+      tenancyId: t.id,
+      tenantId: t.tenantId,
+      name: t.tenant?.name?.trim() || t.tenant?.email || "Inquilino",
+      sharePercentage: t.sharePercentage,
+    }));
+}
+
 /**
- * Porcentaje de las facturas que se muestra. El inquilino ve su parte; el dueño
- * ve exactamente la misma cifra que su inquilino cuando hay uno solo, así los
- * números coinciden entre ambas vistas.
+ * Porcentaje de las facturas que se muestra en la cifra principal.
+ * - Inquilino: el suyo.
+ * - Dueño con un solo inquilino: el mismo %, para que vean el mismo número.
+ * - Dueño con varios: 100 (el desglose va aparte).
  */
 export function viewerShare(property: Property | null | undefined) {
   if (!splitsByPercentage(property)) return 100;
   if (property?.role === "tenant") return property?.myShare ?? 100;
-  const tenancies = property?.tenancies ?? [];
-  if (tenancies.length === 1) return tenancies[0]!.sharePercentage;
+  const parties = shareParties(property);
+  if (parties.length === 1) return parties[0]!.sharePercentage;
   return 100;
 }
 
@@ -45,18 +65,37 @@ export function shareOf(amount: number, share: number) {
   return Math.round(amount * (share / 100) * 100) / 100;
 }
 
+/** Alquiler completo + % de facturas para un share dado. */
+export function amountDueForShare(
+  property: Property | null | undefined,
+  share: number,
+  periodId?: string,
+) {
+  return rentOf(property) + shareOf(invoicesSum(property, periodId), share);
+}
+
 /**
  * Lo que tiene que pagar quien está mirando: el alquiler entero más su parte de
- * las facturas. El dueño ve el total completo.
+ * las facturas. Con un solo inquilino, dueño e inquilino ven la misma cifra.
  */
 export function amountDue(
   property: Property | null | undefined,
   periodId?: string,
 ) {
-  const share = viewerShare(property);
-  const rent = rentOf(property);
-  const invoices = invoicesSum(property, periodId);
-  return rent + shareOf(invoices, share);
+  return amountDueForShare(property, viewerShare(property), periodId);
+}
+
+/** Desglose por inquilino cuando las facturas se dividen. */
+export function duesByTenant(
+  property: Property | null | undefined,
+  periodId?: string,
+) {
+  if (!splitsByPercentage(property)) return [];
+  return shareParties(property).map((party) => ({
+    ...party,
+    invoicesShare: shareOf(invoicesSum(property, periodId), party.sharePercentage),
+    due: amountDueForShare(property, party.sharePercentage, periodId),
+  }));
 }
 
 export function requiredInvoiceTypes(

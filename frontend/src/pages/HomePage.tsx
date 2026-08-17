@@ -25,7 +25,7 @@ import {
   longDate,
 } from "../components/ui";
 import { api } from "../lib/api";
-import { amountDue, rentOf, viewerShare } from "../lib/billing";
+import { amountDue, duesByTenant, rentOf, shareParties, splitsByPercentage, viewerShare } from "../lib/billing";
 import type { Property, Tab } from "../types";
 
 type Props = {
@@ -75,6 +75,9 @@ export function HomePage({ property, loading, onNavigate }: Props) {
   const rent = rentOf(property);
   const share = viewerShare(property);
   const due = amountDue(property, period?.id);
+  const parties = shareParties(property);
+  const splitting = splitsByPercentage(property);
+  const tenantDues = duesByTenant(property, period?.id);
   const contacts = property.emergencyContacts ?? [];
   const tenants = property.tenancies ?? [];
   const openClaims = (property.claims ?? []).filter(
@@ -83,6 +86,11 @@ export function HomePage({ property, loading, onNavigate }: Props) {
   const pendingPayment = (period?.payments ?? []).find((p) => p.status === "pending");
   const goBilling = () => onNavigate("facturas");
   const hasContract = Boolean(contract);
+
+  const focusAmount =
+    isOwner && splitting && parties.length > 1
+      ? tenantDues.reduce((sum, t) => sum + t.due, 0)
+      : due;
 
   function buildFocus(): Focus {
     if (!period) {
@@ -108,16 +116,25 @@ export function HomePage({ property, loading, onNavigate }: Props) {
       rent > 0
         ? `Alquiler ${money(rent)} + ${invoices.length} factura${invoices.length === 1 ? "" : "s"}`
         : `${invoices.length} factura${invoices.length === 1 ? "" : "s"}`;
-    const shareLabel = isOwner ? `${share}% del inquilino` : `tu ${share}%`;
+    const shareLabel =
+      isOwner && parties.length === 1
+        ? `${share}% de ${parties[0]!.name}`
+        : isOwner
+          ? `${share}% del inquilino`
+          : `tu ${share}%`;
     const detail =
-      share === 100
+      !splitting || parties.length === 0
         ? breakdown
-        : `Alquiler ${money(rent)} + ${shareLabel} de las facturas`;
+        : parties.length === 1 || !isOwner
+          ? `Alquiler ${money(rent)} + ${shareLabel} de las facturas`
+          : tenantDues
+              .map((t) => `${t.name} ${money(t.due)}`)
+              .join(" · ");
 
     if (period.status === "collecting") {
       return {
         eyebrow: period.label,
-        amount: due,
+        amount: focusAmount,
         title: isOwner ? "Cargando facturas" : "El dueño está cargando las facturas",
         meta: detail,
         badge: { label: "En preparación", tone: "neutral" },
@@ -138,11 +155,11 @@ export function HomePage({ property, loading, onNavigate }: Props) {
     if (isOwner) {
       return {
         eyebrow: period.label,
-        amount: due,
+        amount: focusAmount,
         title: pendingPayment ? "Hay un comprobante para revisar" : "Esperando el pago",
         meta: pendingPayment
           ? `${pendingPayment.tenant?.name ?? "El inquilino"} subió ${money(pendingPayment.amount)}`
-          : `Aviso enviado el ${longDate(period.readyAt)}`,
+          : detail,
         badge: pendingPayment
           ? { label: "Revisar", tone: "warn" }
           : { label: "Enviado", tone: "brand" },

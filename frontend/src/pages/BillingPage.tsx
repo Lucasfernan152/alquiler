@@ -3,10 +3,13 @@ import type { FormEvent } from "react";
 import { api } from "../lib/api";
 import {
   amountDue,
+  duesByTenant,
   missingRequiredInvoiceTypes,
   rentOf,
   requiredInvoiceTypes,
   shareOf,
+  shareParties,
+  splitsByPercentage,
   viewerShare,
 } from "../lib/billing";
 import { Screen } from "../components/Screen";
@@ -108,14 +111,46 @@ export function BillingPage({
   const rent = rentOf(current);
   const share = viewerShare(current);
   const due = amountDue(current, period?.id);
-  const shareLabel = isOwner ? `${share}% del inquilino` : `tu ${share}%`;
-  const invoiceValue = (amount: number) => money(shareOf(amount, share));
-  const invoiceMeta = (extra?: string | null) => {
-    const label =
-      share === 100 ? null : isOwner ? `${share}% inquilino` : `Tu ${share}%`;
-    const parts = [label, extra?.trim() || null].filter(Boolean);
-    return parts.length > 0 ? parts.join(" · ") : undefined;
-  };
+  const parties = shareParties(current);
+  const splitting = splitsByPercentage(current);
+  const tenantDues = duesByTenant(current, period?.id);
+  const shareLabel = isOwner
+    ? parties.length === 1
+      ? `${share}% de ${parties[0]!.name}`
+      : `${share}% del inquilino`
+    : `tu ${share}%`;
+
+  /** Valor y meta de cada factura: el dueño carga el total, la app muestra la parte. */
+  function invoiceRow(amount: number, extra?: string | null) {
+    if (!splitting || parties.length === 0) {
+      return {
+        value: money(amount),
+        meta: extra?.trim() || undefined,
+      };
+    }
+    if (parties.length === 1 || !isOwner) {
+      const pct = isOwner ? parties[0]!.sharePercentage : share;
+      const parts = [
+        `Total ${money(amount)}`,
+        isOwner
+          ? `${pct}% → ${money(shareOf(amount, pct))}`
+          : `Tu ${pct}% → ${money(shareOf(amount, pct))}`,
+        extra?.trim() || null,
+      ].filter(Boolean);
+      return {
+        value: money(shareOf(amount, pct)),
+        meta: parts.join(" · "),
+      };
+    }
+    const breakdown = parties
+      .map((p) => `${p.name} ${money(shareOf(amount, p.sharePercentage))}`)
+      .join(" · ");
+    return {
+      value: money(amount),
+      meta: [breakdown, extra?.trim() || null].filter(Boolean).join(" · "),
+    };
+  }
+
   const required = requiredInvoiceTypes(current);
   const missing = missingRequiredInvoiceTypes(current, period?.id);
   const canNotify =
@@ -220,14 +255,25 @@ export function BillingPage({
             <div className="flex items-start justify-between gap-3 p-4">
               <div>
                 <p className="text-[13px] font-medium text-ink-500">
-                  {share === 100 ? period.label : `${period.label} · ${shareLabel}`}
+                  {share === 100 && !(isOwner && splitting && parties.length > 1)
+                    ? period.label
+                    : `${period.label} · ${shareLabel}`}
                 </p>
                 <p className="amount mt-1 text-[28px] leading-none text-ink-900">
-                  {money(due)}
+                  {isOwner && splitting && parties.length > 1
+                    ? money(tenantDues.reduce((sum, t) => sum + t.due, 0))
+                    : money(due)}
                 </p>
-                {share !== 100 && (
+                {splitting && parties.length > 0 && (
                   <p className="mt-1 text-[13px] text-ink-500">
-                    Alquiler {money(rent)} + {shareLabel} de las facturas
+                    {parties.length === 1 || !isOwner
+                      ? `Alquiler ${money(rent)} + ${shareLabel} de las facturas`
+                      : `Suma de lo que debe cada inquilino (alquiler + su % de facturas)`}
+                  </p>
+                )}
+                {isOwner && splitting && parties.length === 0 && (
+                  <p className="mt-1 text-[13px] text-ink-500">
+                    Agregá inquilinos en Más para ver cómo se divide.
                   </p>
                 )}
               </div>
@@ -258,12 +304,13 @@ export function BillingPage({
                     (i) => i.type.trim().toLowerCase() === type.trim().toLowerCase(),
                   );
                   if (uploaded) {
+                    const row = invoiceRow(uploaded.amount, "Del preset · cargada");
                     return (
                       <ListRow
                         key={type}
                         title={uploaded.type}
-                        meta={invoiceMeta("Del preset · cargada")}
-                        value={invoiceValue(uploaded.amount)}
+                        meta={row.meta}
+                        value={row.value}
                         right={
                           uploaded.filePath ? (
                             <a
@@ -309,12 +356,14 @@ export function BillingPage({
                           type.trim().toLowerCase() === invoice.type.trim().toLowerCase(),
                       ),
                   )
-                  .map((invoice) => (
+                  .map((invoice) => {
+                    const row = invoiceRow(invoice.amount, invoice.notes);
+                    return (
                     <ListRow
                       key={invoice.id}
                       title={invoice.type}
-                      meta={invoiceMeta(invoice.notes)}
-                      value={invoiceValue(invoice.amount)}
+                      meta={row.meta}
+                      value={row.value}
                       right={
                         invoice.filePath ? (
                           <a
@@ -329,7 +378,26 @@ export function BillingPage({
                         ) : undefined
                       }
                     />
-                  ))}
+                    );
+                  })}
+              </div>
+            )}
+
+            {isOwner && splitting && tenantDues.length > 0 && (
+              <div className="divide-y divide-sand-200/70 border-t border-sand-200/70">
+                <div className="px-4 py-2.5">
+                  <p className="text-[12px] font-semibold uppercase tracking-wide text-ink-400">
+                    A pagar por inquilino
+                  </p>
+                </div>
+                {tenantDues.map((t) => (
+                  <ListRow
+                    key={t.tenancyId}
+                    title={t.name}
+                    meta={`Alquiler ${money(rent)} + ${t.sharePercentage}% facturas (${money(t.invoicesShare)})`}
+                    value={money(t.due)}
+                  />
+                ))}
               </div>
             )}
 
@@ -507,7 +575,14 @@ export function BillingPage({
                   />
                 )}
               </Field>
-              <Field label="Monto">
+              <Field
+                label="Monto total"
+                hint={
+                  splitting
+                    ? "Cargá el total de la factura. La app calcula lo que le toca a cada inquilino."
+                    : undefined
+                }
+              >
                 <input
                   className={inputClass}
                   type="number"
@@ -518,6 +593,30 @@ export function BillingPage({
                   required
                 />
               </Field>
+              {splitting && Number(invoiceAmount) > 0 && (
+                <div className="rounded-xl bg-sand-50 px-3.5 py-3 text-[13px] text-ink-700">
+                  {parties.length === 0 ? (
+                    <p>Agregá inquilinos en Más para ver la división.</p>
+                  ) : (
+                    <ul className="space-y-1.5">
+                      {parties.map((p) => (
+                        <li
+                          key={p.tenancyId}
+                          className="flex items-center justify-between gap-3"
+                        >
+                          <span>
+                            {p.name}{" "}
+                            <span className="text-ink-400">({p.sharePercentage}%)</span>
+                          </span>
+                          <span className="font-semibold tabular-nums text-ink-900">
+                            {money(shareOf(Number(invoiceAmount), p.sharePercentage))}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
               <Field label="Archivo" hint="PDF o foto de la factura. Es opcional.">
                 <input
                   className={inputClass}
