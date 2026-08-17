@@ -2,6 +2,7 @@
   "version": 2,
   "buildCommand": "npm run build",
   "installCommand": "npm install --registry=https://registry.npmjs.org/",
+  "outputDirectory": "dist",
   "rewrites": [{ "source": "/(.*)", "destination": "/api" }],
   "crons": [
     {
