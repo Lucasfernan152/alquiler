@@ -19,6 +19,7 @@ import {
   CardList,
   EmptyState,
   ListRow,
+  LoadingBlock,
   SectionHeading,
   money,
   longDate,
@@ -47,7 +48,7 @@ export function HomePage({ property, loading, onNavigate }: Props) {
   const [showContacts, setShowContacts] = useState(false);
 
   if (loading && !property) {
-    return <p className="px-1 py-8 text-sm text-ink-500">Cargando…</p>;
+    return <LoadingBlock />;
   }
 
   if (!property) {

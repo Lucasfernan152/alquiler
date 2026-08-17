@@ -19,6 +19,7 @@ export function usePropertyOptions(reloadKey: number) {
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [options, setOptions] = useState<PropertyOption[]>([]);
   const [loading, setLoading] = useState(true);
+  const [ready, setReady] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -49,7 +50,9 @@ export function usePropertyOptions(reloadKey: number) {
         if (active) setError(err instanceof Error ? err.message : "Error de red");
       })
       .finally(() => {
-        if (active) setLoading(false);
+        if (!active) return;
+        setLoading(false);
+        setReady(true);
       });
 
     return () => {
@@ -57,7 +60,8 @@ export function usePropertyOptions(reloadKey: number) {
     };
   }, [reloadKey]);
 
-  return { buildings, options, loading, error };
+  // Los refrescos posteriores no deberían tapar la pantalla con un spinner.
+  return { buildings, options, loading, initialLoading: loading && !ready, error };
 }
 
 export function useProperty(propertyId: string | null) {
@@ -85,5 +89,9 @@ export function useProperty(propertyId: string | null) {
     void load();
   }, [load]);
 
-  return { property, loading, error, reload: load };
+  // Al cambiar de propiedad, lo que hay en memoria todavía es de la anterior:
+  // conviene un spinner antes que datos que no corresponden.
+  const stale = Boolean(propertyId) && property?.id !== propertyId;
+
+  return { property: stale ? null : property, loading, stale, error, reload: load };
 }

@@ -14,7 +14,7 @@ export function Screen({
   useBackClosable(onClose);
 
   return (
-    <div className="fixed inset-0 z-30 overflow-y-auto bg-sand-100">
+    <div data-screen className="fixed inset-0 z-30 overflow-y-auto bg-sand-100">
       <div className="safe-top sticky top-0 z-10 border-b border-sand-200 bg-sand-100/95 backdrop-blur">
         <div className="mx-auto flex max-w-3xl items-center gap-2 px-2 pb-3">
           <button

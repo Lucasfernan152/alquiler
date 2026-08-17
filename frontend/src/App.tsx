@@ -2,13 +2,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppHeader } from "./components/AppHeader";
 import { BottomNav } from "./components/BottomNav";
 import { PropertySwitcher } from "./components/PropertySwitcher";
+import { PullToRefresh } from "./components/PullToRefresh";
 import { AuthPage } from "./pages/AuthPage";
 import { HomePage } from "./pages/HomePage";
 import { BillingPage } from "./pages/BillingPage";
 import { ClaimsPage } from "./pages/ClaimsPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
 import { MorePage } from "./pages/MorePage";
-import { ErrorText } from "./components/ui";
+import { ErrorText, LoadingBlock, Spinner } from "./components/ui";
 import { api, clearTokens, getAccessToken } from "./lib/api";
 import { closeTopScreen } from "./lib/backStack";
 import { useProperty, usePropertyOptions } from "./lib/data";
@@ -38,7 +39,7 @@ export default function App() {
   if (booting) {
     return (
       <div className="grid min-h-dvh place-items-center bg-sand-100">
-        <p className="text-sm text-ink-500">Cargando…</p>
+        <Spinner className="size-8" />
       </div>
     );
   }
@@ -65,8 +66,13 @@ function AppShell({ user, onLogout }: { user: User; onLogout: () => void }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [navFocus, setNavFocus] = useState<NavFocus | null>(null);
 
-  const { buildings, options, error: optionsError } = usePropertyOptions(optionsKey);
-  const { property, loading, reload } = useProperty(selectedId);
+  const {
+    buildings,
+    options,
+    initialLoading: optionsLoading,
+    error: optionsError,
+  } = usePropertyOptions(optionsKey);
+  const { property, loading, stale, reload } = useProperty(selectedId);
 
   useEffect(() => {
     void setupPushNotifications();
@@ -145,6 +151,16 @@ function AppShell({ user, onLogout }: { user: User; onLogout: () => void }) {
     loadNotifications();
   }
 
+  /** Recarga completa del gesto de arrastrar: propiedades, detalle y avisos. */
+  async function refreshEverything() {
+    setOptionsKey((k) => k + 1);
+    await reloadAll();
+  }
+
+  // Mientras no tengamos los datos de la propiedad elegida, spinner: mostrar lo
+  // de la propiedad anterior confunde más que esperar.
+  const waitingForContent = optionsLoading || stale || (loading && !property);
+
   return (
     <div className="min-h-dvh bg-sand-100 pb-24">
       <AppHeader
@@ -153,70 +169,84 @@ function AppShell({ user, onLogout }: { user: User; onLogout: () => void }) {
         onOpenProfile={() => goToTab("mas")}
       />
 
-      <div className="mx-auto -mt-11 max-w-3xl space-y-5 px-4">
-        <PropertySwitcher
-          options={options}
-          selectedId={selectedId}
-          onSelect={setSelectedId}
-        />
+      <PullToRefresh onRefresh={refreshEverything}>
+        <div className="mx-auto -mt-11 max-w-3xl space-y-5 px-4">
+          <PropertySwitcher
+            options={options}
+            selectedId={selectedId}
+            onSelect={setSelectedId}
+          />
 
-        <ErrorText>{optionsError}</ErrorText>
+          <ErrorText>{optionsError}</ErrorText>
 
-        <main>
-          {tab === "inicio" && (
-            <HomePage property={property} loading={loading} onNavigate={goToTab} />
-          )}
-          {tab === "facturas" && (
-            <BillingPage
-              property={property}
-              reload={reloadAll}
-              focusPeriodId={
-                focusReady && navFocus?.tab === "facturas"
-                  ? navFocus.billingPeriodId
-                  : null
-              }
-              focusOpenPayment={
-                focusReady && navFocus?.tab === "facturas"
-                  ? Boolean(navFocus.openPayment)
-                  : false
-              }
-              onFocusHandled={clearFocus}
-            />
-          )}
-          {tab === "reclamos" && (
-            <ClaimsPage
-              property={property}
-              reload={reloadAll}
-              focusClaimId={
-                focusReady && navFocus?.tab === "reclamos" ? navFocus.claimId : null
-              }
-              onFocusHandled={clearFocus}
-            />
-          )}
-          {tab === "avisos" && (
-            <NotificationsPage
-              items={notifications}
-              onChanged={loadNotifications}
-              onOpen={openFromNotification}
-            />
-          )}
-          {tab === "mas" && (
-            <MorePage
-              user={user}
-              buildings={buildings}
-              property={property}
-              reloadProperty={reload}
-              reloadOptions={() => setOptionsKey((k) => k + 1)}
-              onSelectProperty={setSelectedId}
-              onLogout={onLogout}
-              focusSheet={
-                focusReady && navFocus?.tab === "mas" ? navFocus.sheet : null
-              }
-              onFocusHandled={clearFocus}
-            />
-          )}
-        </main>
-      </div>
+          <main>
+            {waitingForContent && tab !== "avisos" ? (
+              <LoadingBlock />
+            ) : (
+              <>
+                {tab === "inicio" && (
+                  <HomePage
+                    property={property}
+                    loading={loading}
+                    onNavigate={goToTab}
+                  />
+                )}
+                {tab === "facturas" && (
+                  <BillingPage
+                    property={property}
+                    reload={reloadAll}
+                    focusPeriodId={
+                      focusReady && navFocus?.tab === "facturas"
+                        ? navFocus.billingPeriodId
+                        : null
+                    }
+                    focusOpenPayment={
+                      focusReady && navFocus?.tab === "facturas"
+                        ? Boolean(navFocus.openPayment)
+                        : false
+                    }
+                    onFocusHandled={clearFocus}
+                  />
+                )}
+                {tab === "reclamos" && (
+                  <ClaimsPage
+                    property={property}
+                    reload={reloadAll}
+                    focusClaimId={
+                      focusReady && navFocus?.tab === "reclamos"
+                        ? navFocus.claimId
+                        : null
+                    }
+                    onFocusHandled={clearFocus}
+                  />
+                )}
+                {tab === "avisos" && (
+                  <NotificationsPage
+                    items={notifications}
+                    onChanged={loadNotifications}
+                    onOpen={openFromNotification}
+                  />
+                )}
+                {tab === "mas" && (
+                  <MorePage
+                    user={user}
+                    buildings={buildings}
+                    property={property}
+                    reloadProperty={reload}
+                    reloadOptions={() => setOptionsKey((k) => k + 1)}
+                    onSelectProperty={setSelectedId}
+                    onLogout={onLogout}
+                    focusSheet={
+                      focusReady && navFocus?.tab === "mas" ? navFocus.sheet : null
+                    }
+                    onFocusHandled={clearFocus}
+                  />
+                )}
+              </>
+            )}
+          </main>
+        </div>
+      </PullToRefresh>
 
       <BottomNav tab={tab} unread={unread} onChange={goToTab} />
     </div>

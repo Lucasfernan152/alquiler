@@ -1,8 +1,41 @@
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ButtonHTMLAttributes, CSSProperties, ReactNode } from "react";
 import { ChevronRightIcon } from "./icons";
 
 export function cx(...values: Array<string | false | null | undefined>) {
   return values.filter(Boolean).join(" ");
+}
+
+export function Spinner({
+  className,
+  style,
+  spinning = true,
+}: {
+  className?: string;
+  style?: CSSProperties;
+  /** Apagado mientras el gesto de recarga se arrastra a mano. */
+  spinning?: boolean;
+}) {
+  return (
+    <span
+      role="status"
+      aria-label="Cargando"
+      style={style}
+      className={cx(
+        "inline-block rounded-full border-2 border-sand-300 border-t-brand-600",
+        spinning && "animate-spin",
+        className ?? "size-5",
+      )}
+    />
+  );
+}
+
+/** Espacio en blanco con spinner centrado, para contenido que todavía no llegó. */
+export function LoadingBlock({ className }: { className?: string }) {
+  return (
+    <div className={cx("flex items-center justify-center py-14", className)}>
+      <Spinner className="size-7" />
+    </div>
+  );
 }
 
 export function Card({
