@@ -31,6 +31,10 @@ export function getAccessToken() {
   return localStorage.getItem(TOKEN_KEY);
 }
 
+function getRefreshToken() {
+  return localStorage.getItem(REFRESH_KEY);
+}
+
 export function setTokens(access: string, refresh: string) {
   localStorage.setItem(TOKEN_KEY, access);
   localStorage.setItem(REFRESH_KEY, refresh);
@@ -41,10 +45,50 @@ export function clearTokens() {
   localStorage.removeItem(REFRESH_KEY);
 }
 
+export function hasStoredSession() {
+  return Boolean(getAccessToken() || getRefreshToken());
+}
+
+type AuthResult = {
+  user: User;
+  accessToken: string;
+  refreshToken: string;
+};
+
+/** Una sola renovación a la vez: si varios requests fallan juntos, no spamean /refresh. */
+let refreshInFlight: Promise<boolean> | null = null;
+
+async function refreshSession(): Promise<boolean> {
+  if (refreshInFlight) return refreshInFlight;
+
+  refreshInFlight = (async () => {
+    const refreshToken = getRefreshToken();
+    if (!refreshToken) return false;
+    try {
+      const res = await fetch(apiUrl("/api/auth/refresh"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshToken }),
+      });
+      if (!res.ok) return false;
+      const data = (await res.json()) as AuthResult;
+      setTokens(data.accessToken, data.refreshToken);
+      return true;
+    } catch {
+      return false;
+    } finally {
+      refreshInFlight = null;
+    }
+  })();
+
+  return refreshInFlight;
+}
+
 async function request<T>(
   path: string,
   options: RequestInit = {},
   auth = true,
+  retried = false,
 ): Promise<T> {
   const headers = new Headers(options.headers);
   if (!(options.body instanceof FormData) && !headers.has("Content-Type")) {
@@ -56,6 +100,13 @@ async function request<T>(
   }
   const res = await fetch(apiUrl(path), { ...options, headers });
   if (res.status === 204) return undefined as T;
+
+  // Access vencido: renovamos con el refresh y reintentamos una vez.
+  if (auth && res.status === 401 && !retried) {
+    const ok = await refreshSession();
+    if (ok) return request<T>(path, options, auth, true);
+  }
+
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     throw new ApiError(res.status, data.error ?? "Error de red");
@@ -65,18 +116,31 @@ async function request<T>(
 
 export const api = {
   register(body: { email: string; password: string; name: string }) {
-    return request<{
-      user: User;
-      accessToken: string;
-      refreshToken: string;
-    }>("/api/auth/register", { method: "POST", body: JSON.stringify(body) }, false);
+    return request<AuthResult>(
+      "/api/auth/register",
+      { method: "POST", body: JSON.stringify(body) },
+      false,
+    );
   },
   login(body: { email: string; password: string }) {
-    return request<{
-      user: User;
-      accessToken: string;
-      refreshToken: string;
-    }>("/api/auth/login", { method: "POST", body: JSON.stringify(body) }, false);
+    return request<AuthResult>(
+      "/api/auth/login",
+      { method: "POST", body: JSON.stringify(body) },
+      false,
+    );
+  },
+  /**
+   * Restaura la sesión al abrir la app. Si el access ya venció (15m), usa el
+   * refresh. Solo limpia tokens si el refresh también falló.
+   */
+  async restoreSession(): Promise<User | null> {
+    if (!hasStoredSession()) return null;
+    try {
+      return await request<User>("/api/auth/me");
+    } catch {
+      clearTokens();
+      return null;
+    }
   },
   me() {
     return request<User>("/api/auth/me");

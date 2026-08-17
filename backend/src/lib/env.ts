@@ -23,7 +23,8 @@ export const env = {
   jwtAccessSecret: required("JWT_ACCESS_SECRET", "dev-access-secret"),
   jwtRefreshSecret: required("JWT_REFRESH_SECRET", "dev-refresh-secret"),
   jwtAccessExpires: process.env.JWT_ACCESS_EXPIRES ?? "15m",
-  jwtRefreshExpires: process.env.JWT_REFRESH_EXPIRES ?? "30d",
+  /** Sesión “siempre abierta”: 1 año. Solo se corta con logout explícito. */
+  jwtRefreshExpires: process.env.JWT_REFRESH_EXPIRES ?? "365d",
   uploadDir: path.resolve(
     process.env.UPLOAD_DIR ?? path.join(__dirname, "../../uploads"),
   ),

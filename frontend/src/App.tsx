@@ -10,7 +10,7 @@ import { ClaimsPage } from "./pages/ClaimsPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
 import { MorePage } from "./pages/MorePage";
 import { ErrorText, LoadingBlock, Spinner } from "./components/ui";
-import { api, clearTokens, getAccessToken } from "./lib/api";
+import { api, clearTokens, getAccessToken, hasStoredSession } from "./lib/api";
 import { closeTopScreen } from "./lib/backStack";
 import { useProperty, usePropertyOptions } from "./lib/data";
 import type { NavFocus } from "./lib/notificationNav";
@@ -25,14 +25,13 @@ export default function App() {
   const [booting, setBooting] = useState(true);
 
   useEffect(() => {
-    if (!getAccessToken()) {
+    if (!hasStoredSession()) {
       setBooting(false);
       return;
     }
     api
-      .me()
-      .then(setUser)
-      .catch(() => clearTokens())
+      .restoreSession()
+      .then((session) => setUser(session))
       .finally(() => setBooting(false));
   }, []);
 
