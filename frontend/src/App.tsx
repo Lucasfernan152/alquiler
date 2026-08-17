@@ -172,8 +172,9 @@ function AppShell({ user, onLogout }: { user: User; onLogout: () => void }) {
               user={user}
               buildings={buildings}
               property={property}
-              reloadProperty={reload}
-              reloadOptions={() => setOptionsKey((k) => k + 1)}
+                    reloadProperty={reload}
+                    reloadOptions={() => setOptionsKey((k) => k + 1)}
+                    onSelectProperty={setSelectedId}
               onLogout={onLogout}
               focusSheet={
                 focusReady && navFocus?.tab === "mas" ? navFocus.sheet : null

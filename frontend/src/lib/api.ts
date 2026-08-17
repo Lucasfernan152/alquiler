@@ -108,7 +108,7 @@ export const api = {
       billSplitMode?: string;
     },
   ) {
-    return request(`/api/buildings/${buildingId}/properties`, {
+    return request<Property>(`/api/buildings/${buildingId}/properties`, {
       method: "POST",
       body: JSON.stringify(body),
     });

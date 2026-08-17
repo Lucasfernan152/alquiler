@@ -37,6 +37,7 @@ type Props = {
   property: Property | null;
   reloadProperty: () => Promise<void>;
   reloadOptions: () => void;
+  onSelectProperty: (propertyId: string) => void;
   onLogout: () => void;
   focusSheet?: "contract" | null;
   onFocusHandled?: () => void;
@@ -57,6 +58,7 @@ export function MorePage({
   property,
   reloadProperty,
   reloadOptions,
+  onSelectProperty,
   onLogout,
   focusSheet,
   onFocusHandled,
@@ -89,6 +91,11 @@ export function MorePage({
   const [newBuildingName, setNewBuildingName] = useState("");
   const [newBuildingAddress, setNewBuildingAddress] = useState("");
   const [newBuildingCity, setNewBuildingCity] = useState("");
+  const [newBuildingUnit, setNewBuildingUnit] = useState("");
+
+  // Edificio sin unidades al que le estamos agregando la primera.
+  const [orphanBuilding, setOrphanBuilding] = useState<Building | null>(null);
+  const [orphanUnit, setOrphanUnit] = useState("");
 
   const [tenantEmail, setTenantEmail] = useState("");
   const [tenantShare, setTenantShare] = useState(100);
@@ -110,6 +117,10 @@ export function MorePage({
   }, [property?.id, property?.label, property?.floor]);
 
   const currentRequired = requiredInvoiceTypes(property);
+  // Un edificio sin unidades no entra en el selector, así que se lista aparte.
+  const buildingsWithoutUnits = buildings.filter(
+    (b) => (b.properties ?? []).length === 0,
+  );
 
   async function run(action: () => Promise<unknown>, refreshOptions = false) {
     setBusy(true);
@@ -157,18 +168,39 @@ export function MorePage({
     }, true);
   }
 
+  // El edificio se crea siempre con su primera unidad: sin unidades no habría
+  // nada para elegir en el selector y quedaría invisible.
   async function createBuilding(e: FormEvent) {
     e.preventDefault();
     await run(async () => {
-      await api.createBuilding({
+      const created = await api.createBuilding({
         name: newBuildingName,
         address: newBuildingAddress,
         city: newBuildingCity,
       });
+      const unit = await api.createProperty(created.id, {
+        label: newBuildingUnit.trim() || "Unidad 1",
+      });
       setNewBuildingName("");
       setNewBuildingAddress("");
       setNewBuildingCity("");
+      setNewBuildingUnit("");
       setSheet(null);
+      onSelectProperty(unit.id);
+    }, true);
+  }
+
+  async function addFirstUnit(e: FormEvent) {
+    e.preventDefault();
+    if (!orphanBuilding) return;
+    const target = orphanBuilding;
+    await run(async () => {
+      const unit = await api.createProperty(target.id, {
+        label: orphanUnit.trim() || "Unidad 1",
+      });
+      setOrphanUnit("");
+      setOrphanBuilding(null);
+      onSelectProperty(unit.id);
     }, true);
   }
 
@@ -283,6 +315,23 @@ export function MorePage({
               }
             />
           </Card>
+        </section>
+      )}
+
+      {buildingsWithoutUnits.length > 0 && (
+        <section>
+          <SectionHeading title="Edificios sin unidades" />
+          <CardList>
+            {buildingsWithoutUnits.map((b) => (
+              <ListRow
+                key={b.id}
+                icon={<BuildingIcon className="size-[18px]" />}
+                title={b.name}
+                meta="Agregale una unidad para poder usarlo"
+                onClick={() => setOrphanBuilding(b)}
+              />
+            ))}
+          </CardList>
         </section>
       )}
 
@@ -459,14 +508,53 @@ export function MorePage({
                   placeholder="CABA"
                 />
               </Field>
+              <Field
+                label="Primera unidad"
+                hint="Si es una casa sola, poné algo como “Casa” o “PB”."
+              >
+                <input
+                  className={inputClass}
+                  value={newBuildingUnit}
+                  onChange={(e) => setNewBuildingUnit(e.target.value)}
+                  placeholder="Depto 3B"
+                  required
+                />
+              </Field>
               <Button block disabled={busy}>
                 Crear edificio
               </Button>
             </form>
           </Card>
           <p className="px-1 text-[13px] text-ink-400">
-            Después vas a poder agregarle unidades desde la pantalla del edificio.
+            Después podés sumarle más unidades desde la pantalla del edificio.
           </p>
+        </Screen>
+      )}
+
+      {orphanBuilding && (
+        <Screen
+          title={orphanBuilding.name}
+          onClose={() => setOrphanBuilding(null)}
+        >
+          <Card>
+            <form className="space-y-4" onSubmit={addFirstUnit}>
+              <Field
+                label="Primera unidad"
+                hint="Este edificio no tiene ninguna, por eso no aparece en el selector."
+              >
+                <input
+                  className={inputClass}
+                  value={orphanUnit}
+                  onChange={(e) => setOrphanUnit(e.target.value)}
+                  placeholder="Depto 3B"
+                  required
+                />
+              </Field>
+              <Button block disabled={busy}>
+                Agregar unidad
+              </Button>
+            </form>
+          </Card>
         </Screen>
       )}
 
