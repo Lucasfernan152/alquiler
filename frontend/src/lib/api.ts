@@ -218,8 +218,13 @@ export const api = {
       body: JSON.stringify({ token, platform }),
     });
   },
-  fileUrl(filename: string) {
-    if (/^https?:\/\//i.test(filename)) return filename;
-    return apiUrl(`/api/files/${encodeURIComponent(filename)}`);
+  fileUrl(path: string) {
+    // Siempre por la API: el store de Blob es privado y el browser no puede
+    // abrir la URL cruda. El token va por query porque <a href> no manda
+    // Authorization.
+    const params = new URLSearchParams({ u: path });
+    const token = getAccessToken();
+    if (token) params.set("access_token", token);
+    return apiUrl(`/api/files?${params.toString()}`);
   },
 };

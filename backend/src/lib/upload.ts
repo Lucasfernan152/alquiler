@@ -1,6 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
-import { put } from "@vercel/blob";
+import { Readable } from "node:stream";
+import type { ReadableStream as NodeWebReadableStream } from "node:stream/web";
+import { get, put } from "@vercel/blob";
 import multer from "multer";
 import { env, MAX_UPLOAD_BYTES } from "../lib/env.js";
 
@@ -15,14 +17,14 @@ export const upload = multer({
 });
 
 export type StoredFile = {
-  /** URL pública (Blob) o nombre de archivo local. */
+  /** URL de Blob (privada) o nombre de archivo local. */
   filePath: string;
   fileName: string;
 };
 
 /**
  * Guarda el archivo subido.
- * - Con `BLOB_READ_WRITE_TOKEN`: Vercel Blob (prod / serverless).
+ * - Con `BLOB_READ_WRITE_TOKEN`: Vercel Blob privado (prod / serverless).
  * - Sin token: disco local `UPLOAD_DIR` (dev).
  */
 export async function persistUpload(
@@ -33,7 +35,7 @@ export async function persistUpload(
 
   if (env.blobToken) {
     const blob = await put(key, file.buffer, {
-      access: "public",
+      access: "private",
       token: env.blobToken,
       contentType: file.mimetype || undefined,
       addRandomSuffix: true,
@@ -53,4 +55,30 @@ export function isRemoteFilePath(filePath: string) {
 
 export function publicUploadPath(filename: string): string {
   return path.join(env.uploadDir, path.basename(filename));
+}
+
+/**
+ * Lee un blob privado y lo pipea a la response de Express.
+ * El store es private: la URL sola no alcanza, hace falta el token.
+ */
+export async function streamRemoteFile(
+  fileUrl: string,
+  res: import("express").Response,
+): Promise<boolean> {
+  const result = await get(fileUrl, {
+    access: "private",
+    token: env.blobToken,
+  });
+
+  if (!result || result.statusCode !== 200 || !result.stream) {
+    return false;
+  }
+
+  if (result.blob.contentType) {
+    res.setHeader("Content-Type", result.blob.contentType);
+  }
+  res.setHeader("Cache-Control", "private, max-age=3600");
+
+  Readable.fromWeb(result.stream as NodeWebReadableStream).pipe(res);
+  return true;
 }

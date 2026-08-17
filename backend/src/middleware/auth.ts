@@ -39,3 +39,29 @@ export function requireAuth(req: Request, _res: Response, next: NextFunction) {
     next(new AppError(401, "Token inválido o expirado"));
   }
 }
+
+/**
+ * Igual que requireAuth, pero también acepta `?access_token=` para que los
+ * links `<a href>` puedan abrir archivos sin mandar el header Authorization.
+ */
+export function requireAuthAllowQuery(
+  req: Request,
+  _res: Response,
+  next: NextFunction,
+) {
+  const header = req.headers.authorization;
+  const queryToken =
+    typeof req.query.access_token === "string" ? req.query.access_token : undefined;
+  const raw = header?.startsWith("Bearer ") ? header.slice(7) : queryToken;
+  if (!raw) {
+    next(new AppError(401, "No autenticado"));
+    return;
+  }
+  try {
+    const payload = jwt.verify(raw, env.jwtAccessSecret) as AuthUser;
+    req.user = { id: payload.id, email: payload.email, name: payload.name };
+    next();
+  } catch {
+    next(new AppError(401, "Token inválido o expirado"));
+  }
+}

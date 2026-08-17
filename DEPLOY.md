@@ -78,11 +78,14 @@ Vercel deploya desde el repo.
 ## Paso 4 — Vercel Blob (archivos)
 
 1. En el **mismo proyecto API** (o en el team): Storage → Create → **Blob**.
-2. Conectalo al proyecto API.
-3. Copiá el token `BLOB_READ_WRITE_TOKEN` y agregalo a las env del proyecto API.
-4. Redeploy del API.
+2. Elegí acceso **Private** (recomendado: contratos, facturas y comprobantes).
+3. Conectalo al proyecto API.
+4. Copiá el token `BLOB_READ_WRITE_TOKEN` y agregalo a las env del proyecto API.
+5. Redeploy del API.
 
 Sin este token los uploads fallan en Vercel (no hay disco persistente).
+El backend sube con `access: "private"` y sirve los archivos por `/api/files`
+autenticado (un store Public no hace falta).
 
 ---
 

@@ -4,9 +4,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { env } from "./lib/env.js";
 import { param } from "./lib/params.js";
-import { isRemoteFilePath, publicUploadPath } from "./lib/upload.js";
+import { isRemoteFilePath, publicUploadPath, streamRemoteFile } from "./lib/upload.js";
 import { errorHandler, notFound } from "./middleware/error.js";
-import { requireAuth } from "./middleware/auth.js";
+import { requireAuthAllowQuery } from "./middleware/auth.js";
 import { authRouter } from "./routes/auth.js";
 import { buildingsRouter, propertiesRouter } from "./routes/buildings.js";
 import { contractsRouter } from "./routes/contracts.js";
@@ -54,20 +54,53 @@ export function createApp() {
   app.use("/api/notifications", notificationsRouter);
   app.use("/api/jobs", jobsRouter);
 
-  app.get("/api/files/:filename", requireAuth, (req, res) => {
-    const raw = param(req.params.filename);
-    // Si alguna vez guardamos una URL completa, redirigimos.
-    if (isRemoteFilePath(raw)) {
-      res.redirect(raw);
-      return;
+  // Query `u` = path local o URL de Blob. Token por header o ?access_token=
+  // (los <a href> del front no mandan Authorization).
+  app.get("/api/files", requireAuthAllowQuery, async (req, res, next) => {
+    try {
+      const raw = typeof req.query.u === "string" ? req.query.u : "";
+      if (!raw) {
+        res.status(400).json({ error: "Falta el archivo" });
+        return;
+      }
+
+      if (isRemoteFilePath(raw)) {
+        const ok = await streamRemoteFile(raw, res);
+        if (!ok) res.status(404).json({ error: "Archivo no encontrado" });
+        return;
+      }
+
+      const file = path.basename(raw);
+      const full = publicUploadPath(file);
+      if (!fs.existsSync(full)) {
+        res.status(404).json({ error: "Archivo no encontrado" });
+        return;
+      }
+      res.sendFile(full);
+    } catch (err) {
+      next(err);
     }
-    const file = path.basename(raw);
-    const full = publicUploadPath(file);
-    if (!fs.existsSync(full)) {
-      res.status(404).json({ error: "Archivo no encontrado" });
-      return;
+  });
+
+  // Compat con links viejos `/api/files/:filename` (disco local).
+  app.get("/api/files/:filename", requireAuthAllowQuery, async (req, res, next) => {
+    try {
+      const raw = param(req.params.filename);
+      if (isRemoteFilePath(raw)) {
+        const ok = await streamRemoteFile(raw, res);
+        if (!ok) res.status(404).json({ error: "Archivo no encontrado" });
+        return;
+      }
+      const file = path.basename(raw);
+      const full = publicUploadPath(file);
+      if (!fs.existsSync(full)) {
+        res.status(404).json({ error: "Archivo no encontrado" });
+        return;
+      }
+      res.sendFile(full);
+    } catch (err) {
+      next(err);
     }
-    res.sendFile(full);
   });
 
   app.use(notFound);
