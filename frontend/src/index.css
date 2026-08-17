@@ -1,0 +1,73 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans:
+    "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --color-sand-50: #fbf8f4;
+  --color-sand-100: #f4eee6;
+  --color-sand-200: #e9e0d3;
+  --color-sand-300: #d9ccba;
+
+  --color-ink-900: #241c16;
+  --color-ink-700: #4a3f36;
+  --color-ink-500: #7b6c5f;
+  --color-ink-400: #9c8d80;
+
+  --color-brand-50: #fdf3ef;
+  --color-brand-100: #fae3da;
+  --color-brand-200: #f3c6b4;
+  --color-brand-300: #e7a184;
+  --color-brand-400: #d97b57;
+  --color-brand-500: #c55c36;
+  --color-brand-600: #a9482a;
+  --color-brand-700: #8a3a23;
+  --color-brand-800: #6b2e1e;
+  --color-brand-900: #4a2116;
+
+  --color-sage-50: #eef5f0;
+  --color-sage-100: #d8e9df;
+  --color-sage-500: #4e8c6a;
+  --color-sage-600: #3c7255;
+  --color-sage-700: #2e5b43;
+
+  --shadow-card: 0 1px 2px rgb(36 28 22 / 0.05), 0 14px 30px -22px rgb(36 28 22 / 0.45);
+  --shadow-float: 0 20px 44px -26px rgb(36 28 22 / 0.55);
+}
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply bg-sand-100 font-sans text-ink-900 antialiased;
+    font-feature-settings: "cv05", "ss03";
+  }
+
+  h1,
+  h2,
+  h3 {
+    @apply font-semibold tracking-[-0.02em];
+  }
+
+  select,
+  input,
+  textarea {
+    @apply outline-none;
+  }
+}
+
+@utility amount {
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  font-variant-numeric: tabular-nums;
+}
+
+@utility safe-bottom {
+  padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
+}
+
+@utility safe-top {
+  padding-top: calc(0.75rem + env(safe-area-inset-top));
+}
