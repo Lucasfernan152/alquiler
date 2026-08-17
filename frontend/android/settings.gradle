@@ -1,3 +1,19 @@
+pluginManagement {
+    repositories {
+        google()
+        // Maven Central está sinkholeado a 127.0.0.1 en la red Databricks.
+        maven { url 'https://maven-proxy.cloud.databricks.com' }
+    }
+}
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
+    repositories {
+        google()
+        maven { url 'https://maven-proxy.cloud.databricks.com' }
+    }
+}
+
 include ':app'
 include ':capacitor-cordova-android-plugins'
 project(':capacitor-cordova-android-plugins').projectDir = new File('./capacitor-cordova-android-plugins/')

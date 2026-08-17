@@ -16,12 +16,21 @@ import { claimsRouter } from "./routes/claims.js";
 import { notificationsRouter } from "./routes/notifications.js";
 import { jobsRouter } from "./routes/jobs.js";
 
+/** Orígenes del WebView de Capacitor (Android usa https, iOS capacitor://). */
+const NATIVE_ORIGINS = [
+  "capacitor://localhost",
+  "ionic://localhost",
+  "https://localhost",
+  "http://localhost",
+];
+
 export function createApp() {
   const app = express();
   app.use(
     cors({
       origin(origin, cb) {
         if (!origin) return cb(null, true);
+        if (NATIVE_ORIGINS.includes(origin)) return cb(null, true);
         if (env.corsOrigins.includes(origin)) return cb(null, true);
         if (env.corsOrigins.includes("*")) return cb(null, true);
         return cb(null, false);

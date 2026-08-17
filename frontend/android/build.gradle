@@ -1,10 +1,9 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 
 buildscript {
-    
     repositories {
         google()
-        mavenCentral()
+        maven { url 'https://maven-proxy.cloud.databricks.com' }
     }
     dependencies {
         classpath 'com.android.tools.build:gradle:8.13.0'
@@ -17,12 +16,8 @@ buildscript {
 
 apply from: "variables.gradle"
 
-allprojects {
-    repositories {
-        google()
-        mavenCentral()
-    }
-}
+// Los repos viven en settings.gradle (Databricks Maven proxy).
+// No uses mavenCentral(): en esta red resuelve a 127.0.0.1.
 
 task clean(type: Delete) {
     delete rootProject.buildDir

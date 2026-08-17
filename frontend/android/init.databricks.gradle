@@ -1,0 +1,54 @@
+/**
+ * En la red Databricks, Maven Central (repo.maven.apache.org) resuelve a 127.0.0.1.
+ * Este init reemplaza esos repos por el proxy corporativo.
+ *
+ * Uso: ./gradlew -I init.databricks.gradle assembleDebug
+ */
+def DATABRICKS_MAVEN = 'https://maven-proxy.cloud.databricks.com'
+
+def isBlockedMaven = { URI uri ->
+    def host = uri?.host ?: ''
+    host.contains('repo.maven.apache.org') ||
+        host.contains('repo1.maven.org') ||
+        host.contains('plugins.gradle.org') ||
+        host.contains('maven-central')
+}
+
+def sanitizeRepos = { RepositoryHandler repos ->
+    def toRemove = []
+    repos.each { repo ->
+        if (repo instanceof MavenArtifactRepository && isBlockedMaven(repo.url)) {
+            toRemove << repo
+        }
+    }
+    toRemove.each { repos.remove(it) }
+    if (!repos.any { it instanceof MavenArtifactRepository && it.url.toString().contains('maven-proxy.cloud.databricks.com') }) {
+        repos.maven { url DATABRICKS_MAVEN }
+    }
+}
+
+settingsEvaluated { settings ->
+    sanitizeRepos(settings.pluginManagement.repositories)
+}
+
+gradle.settingsEvaluated { settings ->
+    sanitizeRepos(settings.pluginManagement.repositories)
+}
+
+allprojects { project ->
+    project.buildscript.repositories.whenObjectAdded { repo ->
+        if (repo instanceof MavenArtifactRepository && isBlockedMaven(repo.url)) {
+            project.buildscript.repositories.remove(repo)
+            project.buildscript.repositories.maven { url DATABRICKS_MAVEN }
+        }
+    }
+    sanitizeRepos(project.buildscript.repositories)
+
+    project.repositories.whenObjectAdded { repo ->
+        if (repo instanceof MavenArtifactRepository && isBlockedMaven(repo.url)) {
+            project.repositories.remove(repo)
+            project.repositories.maven { url DATABRICKS_MAVEN }
+        }
+    }
+    sanitizeRepos(project.repositories)
+}
