@@ -1,16 +1,9 @@
 import { useState } from "react";
-import type { FormEvent } from "react";
 import { ApiError, api, setTokens } from "../lib/api";
 import { signInWithGoogle } from "../lib/googleAuth";
 import { KeyIcon } from "../components/icons";
 import { toast } from "../components/Toast";
-import {
-  Button,
-  ErrorText,
-  Field,
-  PasswordInput,
-  inputClass,
-} from "../components/ui";
+import { Button, ErrorText } from "../components/ui";
 import type { User } from "../types";
 
 function GoogleGlyph({ className }: { className?: string }) {
@@ -36,40 +29,19 @@ function GoogleGlyph({ className }: { className?: string }) {
   );
 }
 
-export function AuthPage({ onAuth }: { onAuth: (user: User) => void }) {
-  const [mode, setMode] = useState<"login" | "register">("login");
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [password, setPassword] = useState("");
+export function AuthPage({
+  onAuth,
+  invitePending,
+}: {
+  onAuth: (user: User) => void;
+  invitePending?: boolean;
+}) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
-
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
-    try {
-      const res =
-        mode === "login"
-          ? await api.login({ email, password })
-          : await api.register({ email, password, name, phone });
-      setTokens(res.accessToken, res.refreshToken);
-      onAuth(await api.me());
-    } catch (err) {
-      const message =
-        err instanceof ApiError ? err.message : "No se pudo autenticar";
-      setError(message);
-      toast.error(message);
-    } finally {
-      setLoading(false);
-    }
-  }
 
   async function onGoogle() {
     setError("");
-    setGoogleLoading(true);
+    setLoading(true);
     try {
       const idToken = await signInWithGoogle();
       const res = await api.loginWithGoogle({ idToken });
@@ -93,11 +65,9 @@ export function AuthPage({ onAuth }: { onAuth: (user: User) => void }) {
       setError(message);
       toast.error(message);
     } finally {
-      setGoogleLoading(false);
+      setLoading(false);
     }
   }
-
-  const busy = loading || googleLoading;
 
   return (
     <div className="min-h-dvh bg-brand-700">
@@ -115,101 +85,26 @@ export function AuthPage({ onAuth }: { onAuth: (user: User) => void }) {
         </div>
 
         <div className="rounded-3xl bg-white p-5 shadow-float">
-          <h2 className="text-xl">
-            {mode === "login" ? "Iniciá sesión" : "Creá tu cuenta"}
-          </h2>
+          <h2 className="text-xl">Iniciá sesión</h2>
           <p className="mt-1 text-sm text-ink-500">
-            {mode === "login"
-              ? "Entrá para ver tus propiedades."
-              : "Registrate como dueño o inquilino."}
+            {invitePending
+              ? "Te invitaron a una unidad. Entrá con Google para unirte."
+              : "Entrá con tu cuenta de Google para ver tus propiedades."}
           </p>
 
-          <form className="mt-5 space-y-3" onSubmit={submit}>
-            {mode === "register" && (
-              <>
-                <Field label="Nombre">
-                  <input
-                    className={inputClass}
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Tu nombre"
-                    required
-                  />
-                </Field>
-                <Field
-                  label="Teléfono"
-                  hint="Con código de área. Sirve para que te llamen o escriban por WhatsApp."
-                >
-                  <input
-                    className={inputClass}
-                    type="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="11 5555 0101"
-                    required
-                  />
-                </Field>
-              </>
-            )}
-            <Field label="Email">
-              <input
-                className={inputClass}
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="vos@email.com"
-                required
-              />
-            </Field>
-            <Field label="Contraseña">
-              <PasswordInput
-                value={password}
-                onChange={setPassword}
-                placeholder="Mínimo 6 caracteres"
-                minLength={6}
-                required
-                autoComplete={
-                  mode === "login" ? "current-password" : "new-password"
-                }
-              />
-            </Field>
-
+          <div className="mt-5 space-y-3">
             <ErrorText>{error}</ErrorText>
-
-            <Button block loading={loading} disabled={busy} className="mt-1">
-              {mode === "login" ? "Entrar" : "Crear cuenta"}
-            </Button>
-          </form>
-
-          <div className="my-4 flex items-center gap-3 text-xs text-ink-400">
-            <span className="h-px flex-1 bg-sand-200" />
-            o
-            <span className="h-px flex-1 bg-sand-200" />
-          </div>
-
-          <Button
-            type="button"
-            variant="secondary"
-            block
-            loading={googleLoading}
-            disabled={busy}
-            onClick={onGoogle}
-            className="gap-2"
-          >
-            {!googleLoading && <GoogleGlyph className="size-5 shrink-0" />}
-            Continuar con Google
-          </Button>
-
-          <p className="mt-4 text-center text-sm text-ink-500">
-            {mode === "login" ? "¿No tenés cuenta?" : "¿Ya tenés cuenta?"}{" "}
-            <button
+            <Button
               type="button"
-              className="font-semibold text-brand-600"
-              onClick={() => setMode(mode === "login" ? "register" : "login")}
+              block
+              loading={loading}
+              onClick={onGoogle}
+              className="gap-2"
             >
-              {mode === "login" ? "Registrate" : "Iniciá sesión"}
-            </button>
-          </p>
+              {!loading && <GoogleGlyph className="size-5 shrink-0" />}
+              Continuar con Google
+            </Button>
+          </div>
         </div>
       </div>
     </div>

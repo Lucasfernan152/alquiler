@@ -109,7 +109,7 @@ autenticado (un store Public no hace falta).
    - `APP_URL=https://alquiler-web.vercel.app`
 6. Redeploy del API.
 
-Abrí el front, registrate y probá login + crear un edificio.
+Abrí el front, iniciá con Google y probá crear un edificio.
 
 ---
 
@@ -193,6 +193,9 @@ keytool -list -v -alias androiddebugkey \
 - La app Android no loguea → el WebView usa el origen `https://localhost`; ya está permitido en el backend, revisá que el API esté redeployado.
 - La app Android se cierra al abrirla después del login → `VITE_PUSH_ENABLED=true` sin `google-services.json`.
 - Google Sign-In falla en web → faltan `VITE_FIREBASE_*` o el provider Google no está habilitado.
+- `auth/unauthorized-domain` → agregá el dominio del front en Firebase Console →
+  Authentication → Settings → Authorized domains (sin `https://`). Los preview de
+  Vercel usan un dominio por deploy: probá en la URL de producción.
 - Google Sign-In falla en Android → SHA-1 no cargado / `google-services.json` sin `oauth_client`.
 - `Inicio con Google no está configurado` (503) → falta `FIREBASE_SERVICE_ACCOUNT` en el API.
 

@@ -13,6 +13,7 @@ import {
   viewerShare,
 } from "../lib/billing";
 import { Screen } from "../components/Screen";
+import { PaymentDetailsCard } from "../components/PaymentDetailsCard";
 import { toast } from "../components/Toast";
 import { CheckIcon, ChevronDownIcon, DownloadIcon, ReceiptIcon } from "../components/icons";
 import {
@@ -431,9 +432,22 @@ export function BillingPage({
                   </Button>
                 )}
                 {canPay && (
-                  <Button block onClick={() => setSheet("payment")}>
-                    Subir comprobante
-                  </Button>
+                  <>
+                    {current.paymentDetails &&
+                      (current.paymentDetails.alias ||
+                        current.paymentDetails.cbu ||
+                        current.paymentDetails.holder) && (
+                        <div className="rounded-xl bg-white p-3 ring-1 ring-sand-200">
+                          <PaymentDetailsCard
+                            details={current.paymentDetails}
+                            compact
+                          />
+                        </div>
+                      )}
+                    <Button block onClick={() => setSheet("payment")}>
+                      Subir comprobante
+                    </Button>
+                  </>
                 )}
                 {!isOwner && !canPay && (
                   <p className="w-full py-1 text-center text-[13px] text-ink-500">
@@ -645,6 +659,14 @@ export function BillingPage({
               {share !== 100 ? ` (tu ${share}%)` : ""}:{" "}
               <span className="font-semibold text-ink-900">{money(due)}</span>
             </p>
+            {current.paymentDetails &&
+              (current.paymentDetails.alias ||
+                current.paymentDetails.cbu ||
+                current.paymentDetails.holder) && (
+                <div className="mt-4 rounded-xl bg-sand-50 p-3">
+                  <PaymentDetailsCard details={current.paymentDetails} />
+                </div>
+              )}
             <form className="mt-4 space-y-4" onSubmit={submitPayment}>
               <Field label="Monto pagado">
                 <input

@@ -15,6 +15,9 @@ model User {
   firebaseUid  String?  @unique
   name         String
   phone        String   @default("")
+  paymentAlias  String  @default("")
+  paymentCbu    String  @default("")
+  paymentHolder String  @default("")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -25,6 +28,8 @@ model User {
   payments       Payment[]
   claims         Claim[]       @relation("ClaimAuthor")
   claimResponses Claim[]       @relation("ClaimResponder")
+  invitesCreated TenantInvite[] @relation("InviteCreator")
+  invitesAccepted TenantInvite[] @relation("InviteAcceptor")
 }
 
 model Building {
@@ -34,6 +39,9 @@ model Building {
   address   String
   city      String   @default("")
   notes     String   @default("")
+  paymentAlias  String @default("")
+  paymentCbu    String @default("")
+  paymentHolder String @default("")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -58,6 +66,7 @@ model Property {
   billingPeriods    BillingPeriod[]
   claims            Claim[]
   emergencyContacts EmergencyContact[]
+  invites           TenantInvite[]
 }
 
 model Tenancy {
@@ -227,4 +236,23 @@ model DeviceToken {
   updatedAt DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// Link de invitación para que un inquilino se una a una unidad.
+model TenantInvite {
+  id               String    @id @default(cuid())
+  token            String    @unique
+  propertyId       String
+  sharePercentage  Float     @default(100)
+  createdById      String
+  expiresAt        DateTime
+  acceptedAt       DateTime?
+  acceptedById     String?
+  createdAt        DateTime  @default(now())
+
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  createdBy  User     @relation("InviteCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  acceptedBy User?    @relation("InviteAcceptor", fields: [acceptedById], references: [id])
+
+  @@index([propertyId])
 }

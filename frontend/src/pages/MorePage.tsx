@@ -113,15 +113,31 @@ export function MorePage({
 
   const [profileName, setProfileName] = useState(user.name);
   const [profilePhone, setProfilePhone] = useState(user.phone ?? "");
+  const [profileAlias, setProfileAlias] = useState(user.paymentAlias ?? "");
+  const [profileCbu, setProfileCbu] = useState(user.paymentCbu ?? "");
+  const [profileHolder, setProfileHolder] = useState(user.paymentHolder ?? "");
 
   useEffect(() => {
     setProfileName(user.name);
     setProfilePhone(user.phone ?? "");
-  }, [user.id, user.name, user.phone]);
+    setProfileAlias(user.paymentAlias ?? "");
+    setProfileCbu(user.paymentCbu ?? "");
+    setProfileHolder(user.paymentHolder ?? "");
+  }, [
+    user.id,
+    user.name,
+    user.phone,
+    user.paymentAlias,
+    user.paymentCbu,
+    user.paymentHolder,
+  ]);
 
   const [buildingName, setBuildingName] = useState("");
   const [buildingAddress, setBuildingAddress] = useState("");
   const [buildingCity, setBuildingCity] = useState("");
+  const [buildingAlias, setBuildingAlias] = useState("");
+  const [buildingCbu, setBuildingCbu] = useState("");
+  const [buildingHolder, setBuildingHolder] = useState("");
   const [newUnit, setNewUnit] = useState("");
 
   const [unitLabel, setUnitLabel] = useState("");
@@ -138,6 +154,7 @@ export function MorePage({
 
   const [tenantEmail, setTenantEmail] = useState("");
   const [tenantShare, setTenantShare] = useState(100);
+  const [inviteUrl, setInviteUrl] = useState("");
 
   const [contactCategory, setContactCategory] = useState("");
   const [contactName, setContactName] = useState("");
@@ -148,7 +165,22 @@ export function MorePage({
     setBuildingName(building?.name ?? "");
     setBuildingAddress(building?.address ?? "");
     setBuildingCity(building?.city ?? "");
-  }, [building?.id, building?.name, building?.address, building?.city]);
+    setBuildingAlias(building?.paymentAlias ?? "");
+    setBuildingCbu(building?.paymentCbu ?? "");
+    setBuildingHolder(building?.paymentHolder ?? "");
+  }, [
+    building?.id,
+    building?.name,
+    building?.address,
+    building?.city,
+    building?.paymentAlias,
+    building?.paymentCbu,
+    building?.paymentHolder,
+  ]);
+
+  useEffect(() => {
+    setInviteUrl("");
+  }, [property?.id]);
 
   useEffect(() => {
     setUnitLabel(property?.label ?? "");
@@ -191,6 +223,9 @@ export function MorePage({
           name: buildingName,
           address: buildingAddress,
           city: buildingCity,
+          paymentAlias: buildingAlias,
+          paymentCbu: buildingCbu,
+          paymentHolder: buildingHolder,
         });
         setEditing(null);
       },
@@ -287,6 +322,9 @@ export function MorePage({
       const updated = await api.updateMe({
         name: profileName.trim(),
         phone: profilePhone.trim(),
+        paymentAlias: profileAlias.trim(),
+        paymentCbu: profileCbu.trim(),
+        paymentHolder: profileHolder.trim(),
       });
       onUserUpdated(updated);
       closeSheet();
@@ -296,6 +334,24 @@ export function MorePage({
     } finally {
       setBusy(false);
     }
+  }
+
+  async function createInviteLink() {
+    if (!property) return;
+    await run(
+      async () => {
+        const invite = await api.createInvite(property.id, {
+          sharePercentage: tenantShare,
+        });
+        setInviteUrl(invite.url);
+        try {
+          await navigator.clipboard.writeText(invite.url);
+          toast.success("Link copiado");
+        } catch {
+          toast.success("Link creado");
+        }
+      },
+    );
   }
 
   async function saveContract(form: FormData) {
@@ -497,6 +553,34 @@ export function MorePage({
                   required
                 />
               </Field>
+              <Field
+                label="Alias de cobro"
+                hint="Lo ven tus inquilinos para transferirte."
+              >
+                <input
+                  className={inputClass}
+                  value={profileAlias}
+                  onChange={(e) => setProfileAlias(e.target.value)}
+                  placeholder="tu.alias.mp"
+                />
+              </Field>
+              <Field label="CBU / CVU">
+                <input
+                  className={inputClass}
+                  value={profileCbu}
+                  onChange={(e) => setProfileCbu(e.target.value)}
+                  placeholder="0000003100010000000001"
+                  inputMode="numeric"
+                />
+              </Field>
+              <Field label="Titular de la cuenta">
+                <input
+                  className={inputClass}
+                  value={profileHolder}
+                  onChange={(e) => setProfileHolder(e.target.value)}
+                  placeholder="Nombre y apellido"
+                />
+              </Field>
               <Button block loading={busy}>
                 Guardar
               </Button>
@@ -533,6 +617,32 @@ export function MorePage({
                     onChange={(e) => setBuildingCity(e.target.value)}
                   />
                 </Field>
+                <Field
+                  label="Alias de cobro"
+                  hint="Opcional. Si cargás algo acá, overridea el del perfil para este edificio."
+                >
+                  <input
+                    className={inputClass}
+                    value={buildingAlias}
+                    onChange={(e) => setBuildingAlias(e.target.value)}
+                    placeholder="Dejá vacío para usar el del perfil"
+                  />
+                </Field>
+                <Field label="CBU / CVU del edificio">
+                  <input
+                    className={inputClass}
+                    value={buildingCbu}
+                    onChange={(e) => setBuildingCbu(e.target.value)}
+                    inputMode="numeric"
+                  />
+                </Field>
+                <Field label="Titular">
+                  <input
+                    className={inputClass}
+                    value={buildingHolder}
+                    onChange={(e) => setBuildingHolder(e.target.value)}
+                  />
+                </Field>
                 <div className="flex gap-2">
                   <Button
                     type="button"
@@ -563,6 +673,22 @@ export function MorePage({
                   <p className="text-[12px] font-medium text-ink-400">Ciudad</p>
                   <p className="mt-0.5 text-[15px] text-ink-900">
                     {building.city || "Sin ciudad"}
+                  </p>
+                </div>
+                <div className="px-3.5 py-3">
+                  <p className="text-[12px] font-medium text-ink-400">Cobro</p>
+                  <p className="mt-0.5 text-[15px] text-ink-900">
+                    {building.paymentAlias ||
+                    building.paymentCbu ||
+                    building.paymentHolder
+                      ? [
+                          building.paymentHolder,
+                          building.paymentAlias,
+                          building.paymentCbu,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")
+                      : "Usa el del perfil"}
                   </p>
                 </div>
               </div>
@@ -1059,18 +1185,86 @@ export function MorePage({
               <EmptyState
                 icon={<UsersIcon className="size-5" />}
                 title="Sin inquilinos"
-                description="Asigná a la persona que alquila usando el email con el que se registró."
+                description="Creá un link de invitación o agregalo con el email de su cuenta Google."
               />
+            </Card>
+          )}
+
+          {isOwner && (
+            <Card>
+              <p className="mb-1 text-[15px] font-semibold text-ink-900">
+                Invitar por link
+              </p>
+              <p className="mb-3 text-[13px] text-ink-500">
+                El inquilino abre el link, inicia con Google y queda asignado a
+                esta unidad.
+              </p>
+              <Field
+                label="Porcentaje de las facturas"
+                hint="El alquiler lo paga completo; el porcentaje divide sólo las facturas."
+              >
+                <input
+                  className={inputClass}
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={tenantShare}
+                  onChange={(e) => setTenantShare(Number(e.target.value))}
+                />
+              </Field>
+              <Button
+                className="mt-3"
+                block
+                loading={busy}
+                onClick={createInviteLink}
+              >
+                Crear link de invitación
+              </Button>
+              {inviteUrl && (
+                <div className="mt-3 space-y-2 rounded-xl bg-sand-50 p-3">
+                  <p className="break-all text-[13px] text-ink-700">{inviteUrl}</p>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      block
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(inviteUrl);
+                          toast.success("Link copiado");
+                        } catch {
+                          toast.error("No se pudo copiar");
+                        }
+                      }}
+                    >
+                      Copiar
+                    </Button>
+                    <a
+                      className="inline-flex flex-1 items-center justify-center rounded-xl border border-sand-300 bg-white px-3 py-1.5 text-[13px] font-semibold text-ink-900"
+                      href={`https://wa.me/?text=${encodeURIComponent(
+                        `Hola, uníte a la unidad ${property.label} en Rently: ${inviteUrl}`,
+                      )}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      WhatsApp
+                    </a>
+                  </div>
+                </div>
+              )}
             </Card>
           )}
 
           {editing === "tenant" ? (
             <Card>
               <p className="mb-3 text-[15px] font-semibold text-ink-900">
-                Agregar inquilino
+                Agregar por email
               </p>
               <form className="space-y-4" onSubmit={addTenant}>
-                <Field label="Email" hint="Tiene que estar registrado en la app.">
+                <Field
+                  label="Email"
+                  hint="Tiene que haber iniciado sesión antes con ese Google."
+                >
                   <input
                     className={inputClass}
                     type="email"
@@ -1110,7 +1304,7 @@ export function MorePage({
             </Card>
           ) : (
             <Button block variant="secondary" onClick={() => setEditing("tenant")}>
-              Agregar inquilino
+              Agregar por email
             </Button>
           )}
         </Screen>

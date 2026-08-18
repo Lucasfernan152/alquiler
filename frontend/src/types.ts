@@ -1,8 +1,18 @@
+export type PaymentDetails = {
+  alias: string;
+  cbu: string;
+  holder: string;
+  source: "building" | "owner";
+};
+
 export type User = {
   id: string;
   email: string;
   name: string;
   phone?: string;
+  paymentAlias?: string;
+  paymentCbu?: string;
+  paymentHolder?: string;
   isOwner?: boolean;
   isTenant?: boolean;
 };
@@ -24,8 +34,19 @@ export type Building = {
   address: string;
   city: string;
   notes: string;
+  paymentAlias?: string;
+  paymentCbu?: string;
+  paymentHolder?: string;
   ownerId?: string;
-  owner?: { id: string; name: string; email: string; phone?: string };
+  owner?: {
+    id: string;
+    name: string;
+    email: string;
+    phone?: string;
+    paymentAlias?: string;
+    paymentCbu?: string;
+    paymentHolder?: string;
+  };
   properties: Property[];
 };
 
@@ -46,6 +67,7 @@ export type Property = {
   role?: "owner" | "tenant";
   /** Porcentaje que le toca a quien consulta (100 para el dueño). */
   myShare?: number;
+  paymentDetails?: PaymentDetails;
 };
 
 export type Tenancy = {
@@ -156,4 +178,48 @@ export type Notification = {
   dataJson: string;
   readAt: string | null;
   createdAt: string;
+};
+
+export type MonthSummary = {
+  year: number;
+  month: number;
+  label: string;
+  toCollect: number;
+  collected: number;
+  pendingReviewAmount: number;
+  pendingReviewCount: number;
+  overdueCount: number;
+  units: Array<{
+    propertyId: string;
+    label: string;
+    buildingName: string;
+    periodId: string | null;
+    periodLabel: string | null;
+    status: "collecting" | "ready" | "settled" | "none";
+    due: number;
+    paid: number;
+    pending: number;
+    overdue: boolean;
+  }>;
+};
+
+export type InvitePreview = {
+  token: string;
+  sharePercentage: number;
+  expiresAt: string;
+  property: {
+    id: string;
+    label: string;
+    buildingName: string;
+    address: string;
+    ownerName: string;
+  };
+};
+
+export type CreatedInvite = {
+  id: string;
+  token: string;
+  url: string;
+  sharePercentage: number;
+  expiresAt: string;
 };

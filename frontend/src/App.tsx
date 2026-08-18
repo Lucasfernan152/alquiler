@@ -10,6 +10,11 @@ import { ClaimsPage } from "./pages/ClaimsPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
 import { MorePage } from "./pages/MorePage";
 import { ToastProvider, toast } from "./components/Toast";
+import {
+  InviteAcceptScreen,
+  clearPendingInviteToken,
+  readPendingInviteToken,
+} from "./components/InviteAcceptScreen";
 import { ErrorText, LoadingBlock, Spinner } from "./components/ui";
 import { api, clearTokens, getAccessToken, hasStoredSession } from "./lib/api";
 import { closeTopScreen } from "./lib/backStack";
@@ -21,11 +26,19 @@ import { useHardwareBack } from "./lib/useHardwareBack";
 import type { Notification, Tab, User } from "./types";
 import "./index.css";
 
+const INVITE_HINT_KEY = "alquiler_invite_hint";
+
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [booting, setBooting] = useState(true);
+  const [pendingInvite, setPendingInvite] = useState<string | null>(null);
 
   useEffect(() => {
+    const token = readPendingInviteToken();
+    if (token) {
+      setPendingInvite(token);
+      sessionStorage.setItem(INVITE_HINT_KEY, "1");
+    }
     if (!hasStoredSession()) {
       setBooting(false);
       return;
@@ -49,14 +62,39 @@ export default function App() {
     setUser(null);
   }
 
+  function handleAuth(next: User) {
+    setUser(next);
+    const token = readPendingInviteToken();
+    if (token) setPendingInvite(token);
+  }
+
+  const [joinedPropertyId, setJoinedPropertyId] = useState<string | null>(null);
+
   // La key remonta el shell en cada cambio de cuenta: sin ella, la sesión
   // siguiente hereda las propiedades y avisos de la anterior.
   return (
     <ToastProvider>
       {!user ? (
-        <AuthPage onAuth={setUser} />
+        <AuthPage onAuth={handleAuth} invitePending={Boolean(pendingInvite)} />
+      ) : pendingInvite ? (
+        <div className="min-h-dvh bg-sand-100">
+          <InviteAcceptScreen
+            token={pendingInvite}
+            onSelectProperty={(propertyId) => setJoinedPropertyId(propertyId)}
+            onDone={() => {
+              clearPendingInviteToken();
+              setPendingInvite(null);
+            }}
+          />
+        </div>
       ) : (
-        <AppShell key={user.id} user={user} onUserUpdated={setUser} onLogout={logout} />
+        <AppShell
+          key={user.id}
+          user={user}
+          onUserUpdated={setUser}
+          onLogout={logout}
+          preferredPropertyId={joinedPropertyId}
+        />
       )}
     </ToastProvider>
   );
@@ -66,15 +104,19 @@ function AppShell({
   user,
   onUserUpdated,
   onLogout,
+  preferredPropertyId,
 }: {
   user: User;
   onUserUpdated: (user: User) => void;
   onLogout: () => void;
+  preferredPropertyId?: string | null;
 }) {
   const [tab, setTab] = useState<Tab>("inicio");
   const [tabHistory, setTabHistory] = useState<Tab[]>([]);
   const [optionsKey, setOptionsKey] = useState(0);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(
+    preferredPropertyId ?? null,
+  );
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [navFocus, setNavFocus] = useState<NavFocus | null>(null);
 
@@ -85,6 +127,13 @@ function AppShell({
     error: optionsError,
   } = usePropertyOptions(optionsKey);
   const { property, loading, stale, reload } = useProperty(selectedId);
+
+  useEffect(() => {
+    if (preferredPropertyId) {
+      setSelectedId(preferredPropertyId);
+      setOptionsKey((k) => k + 1);
+    }
+  }, [preferredPropertyId]);
 
   useEffect(() => {
     void setupPushNotifications();
@@ -111,8 +160,12 @@ function AppShell({
       setSelectedId(null);
       return;
     }
+    if (preferredPropertyId && options.some((o) => o.id === preferredPropertyId)) {
+      setSelectedId(preferredPropertyId);
+      return;
+    }
     if (!options.some((o) => o.id === selectedId)) setSelectedId(options[0]!.id);
-  }, [options, selectedId]);
+  }, [options, selectedId, preferredPropertyId]);
 
   const unread = useMemo(
     () => notifications.filter((n) => !n.readAt).length,
@@ -213,6 +266,7 @@ function AppShell({
                     loading={loading}
                     onNavigate={goToTab}
                     onOpenMore={openMoreSheet}
+                    onSelectProperty={setSelectedId}
                   />
                 )}
                 {tab === "facturas" && (

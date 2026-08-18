@@ -491,3 +491,126 @@ export async function ensureCanManagePeriod(periodId: string, userId: string) {
   await assertPropertyOwner(period.propertyId, userId);
   return period;
 }
+
+export type MonthSummaryUnit = {
+  propertyId: string;
+  label: string;
+  buildingName: string;
+  periodId: string | null;
+  periodLabel: string | null;
+  status: "collecting" | "ready" | "settled" | "none";
+  due: number;
+  paid: number;
+  pending: number;
+  overdue: boolean;
+};
+
+/** Resumen portfolio del dueño para el mes calendario actual. */
+export async function ownerMonthSummary(ownerId: string) {
+  const now = new Date();
+  const year = now.getUTCFullYear();
+  const month = now.getUTCMonth() + 1;
+  const dueDate = paymentDueDate(year, month);
+  const overdueCutoff = utcDayStamp(now) > utcDayStamp(dueDate);
+
+  const properties = await prisma.property.findMany({
+    where: { building: { ownerId } },
+    include: {
+      building: { select: { name: true } },
+      tenancies: { where: { active: true }, select: { sharePercentage: true } },
+      contracts: {
+        where: { active: true },
+        take: 1,
+        select: { rentAmount: true },
+      },
+      billingPeriods: {
+        where: { year, month },
+        take: 1,
+        include: {
+          invoices: { select: { amount: true } },
+          payments: { select: { amount: true, status: true } },
+        },
+      },
+    },
+    orderBy: [{ building: { name: "asc" } }, { label: "asc" }],
+  });
+
+  const units: MonthSummaryUnit[] = [];
+  let toCollect = 0;
+  let collected = 0;
+  let pendingReviewAmount = 0;
+  let pendingReviewCount = 0;
+  let overdueCount = 0;
+
+  for (const property of properties) {
+    const period = property.billingPeriods[0] ?? null;
+    const rent =
+      period?.rentAmount ?? property.contracts[0]?.rentAmount ?? 0;
+    const invoicesTotal = sumInvoiceAmounts(
+      (period?.invoices ?? []).map((i) => i.amount),
+    );
+    const mode = property.billSplitMode;
+    const tenants = property.tenancies;
+
+    let due = 0;
+    if (mode === "split_by_percentage" && tenants.length > 0) {
+      for (const t of tenants) {
+        due += amountForTenant(rent, invoicesTotal, mode, t.sharePercentage);
+      }
+    } else {
+      due = rent + invoicesTotal;
+    }
+    due = Math.round(due * 100) / 100;
+
+    const payments = period?.payments ?? [];
+    const paid = payments
+      .filter((p) => p.status === "approved")
+      .reduce((s, p) => s + p.amount, 0);
+    const pending = payments
+      .filter((p) => p.status === "pending")
+      .reduce((s, p) => s + p.amount, 0);
+    const pendingCount = payments.filter((p) => p.status === "pending").length;
+
+    const status = (period?.status ?? "none") as MonthSummaryUnit["status"];
+    const hasCoverage =
+      payments.some((p) => p.status === "approved" || p.status === "pending");
+    const overdue =
+      Boolean(period) &&
+      period!.status === "ready" &&
+      overdueCutoff &&
+      !hasCoverage;
+
+    if (status === "ready" || status === "settled") {
+      toCollect += due;
+      collected += paid;
+      pendingReviewAmount += pending;
+      pendingReviewCount += pendingCount;
+    }
+    if (overdue) overdueCount += 1;
+
+    units.push({
+      propertyId: property.id,
+      label: property.label,
+      buildingName: property.building.name,
+      periodId: period?.id ?? null,
+      periodLabel: period?.label ?? null,
+      status,
+      due,
+      paid: Math.round(paid * 100) / 100,
+      pending: Math.round(pending * 100) / 100,
+      overdue,
+    });
+  }
+
+  return {
+    year,
+    month,
+    label: `${MONTH_NAMES[month - 1]} ${year}`,
+    toCollect: Math.round(toCollect * 100) / 100,
+    collected: Math.round(collected * 100) / 100,
+    pendingReviewAmount: Math.round(pendingReviewAmount * 100) / 100,
+    pendingReviewCount,
+    overdueCount,
+    units,
+  };
+}

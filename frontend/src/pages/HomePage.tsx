@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ContactActions } from "../components/ContactActions";
+import { PaymentDetailsCard } from "../components/PaymentDetailsCard";
 import { QuickActions } from "../components/QuickActions";
 import type { QuickAction } from "../components/QuickActions";
 import { Screen } from "../components/Screen";
@@ -25,12 +26,13 @@ import {
   money,
   longDate,
 } from "../components/ui";
+import { api } from "../lib/api";
 import { amountDue, duesByTenant, rentOf, shareParties, splitsByPercentage, viewerShare } from "../lib/billing";
 import {
   estimateNextRent,
   resolveNextIncreaseDate,
 } from "../lib/rentIncrease";
-import type { Property, Tab } from "../types";
+import type { MonthSummary, Property, Tab } from "../types";
 
 type MoreSheet = "contract" | "tenants";
 
@@ -40,6 +42,7 @@ type Props = {
   onNavigate: (tab: Tab) => void;
   /** Abre Más ya dentro de contrato / inquilinos. */
   onOpenMore: (sheet: MoreSheet) => void;
+  onSelectProperty?: (id: string) => void;
 };
 
 type Focus = {
@@ -52,8 +55,34 @@ type Focus = {
   calm?: boolean;
 };
 
-export function HomePage({ property, loading, onNavigate, onOpenMore }: Props) {
+export function HomePage({
+  property,
+  loading,
+  onNavigate,
+  onOpenMore,
+  onSelectProperty,
+}: Props) {
   const [showContacts, setShowContacts] = useState(false);
+  const [summary, setSummary] = useState<MonthSummary | null>(null);
+
+  useEffect(() => {
+    if (property?.role !== "owner") {
+      setSummary(null);
+      return;
+    }
+    let active = true;
+    api
+      .monthSummary()
+      .then((data) => {
+        if (active) setSummary(data);
+      })
+      .catch(() => {
+        if (active) setSummary(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [property?.role, property?.id]);
 
   if (loading && !property) {
     return <LoadingBlock />;
@@ -65,7 +94,7 @@ export function HomePage({ property, loading, onNavigate, onOpenMore }: Props) {
         <EmptyState
           icon={<ReceiptIcon className="size-5" />}
           title="Todavía no hay una propiedad"
-          description="Si sos dueño, creá tu primer edificio. Si alquilás, pedile al dueño que te asigne con tu email."
+          description="Si sos dueño, creá tu primer edificio. Si alquilás, pedile al dueño el link de invitación."
           action={
             <Button size="sm" onClick={() => onNavigate("mas")}>
               Crear un edificio
@@ -308,6 +337,83 @@ export function HomePage({ property, loading, onNavigate, onOpenMore }: Props) {
         )}
       </Card>
 
+      {isOwner && summary && (
+        <section>
+          <SectionHeading title={`Este mes · ${summary.label}`} />
+          <Card>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <p className="text-[12px] font-medium text-ink-400">A cobrar</p>
+                <p className="amount mt-1 text-[22px] text-ink-900">
+                  {money(summary.toCollect)}
+                </p>
+              </div>
+              <div>
+                <p className="text-[12px] font-medium text-ink-400">Cobrado</p>
+                <p className="amount mt-1 text-[22px] text-ink-900">
+                  {money(summary.collected)}
+                </p>
+              </div>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {summary.pendingReviewCount > 0 && (
+                <Badge tone="warn">
+                  {summary.pendingReviewCount} por revisar ·{" "}
+                  {money(summary.pendingReviewAmount)}
+                </Badge>
+              )}
+              {summary.overdueCount > 0 && (
+                <Badge tone="warn">{summary.overdueCount} atrasadas</Badge>
+              )}
+              {summary.pendingReviewCount === 0 && summary.overdueCount === 0 && (
+                <Badge tone="success">Al día</Badge>
+              )}
+            </div>
+            {summary.units.some((u) => u.overdue || u.pending > 0) && (
+              <div className="mt-3 divide-y divide-sand-200/70 rounded-xl bg-sand-50">
+                {summary.units
+                  .filter((u) => u.overdue || u.pending > 0)
+                  .slice(0, 4)
+                  .map((u) => (
+                    <button
+                      key={u.propertyId}
+                      type="button"
+                      className="flex w-full items-center justify-between gap-3 px-3.5 py-2.5 text-left"
+                      onClick={() => {
+                        onSelectProperty?.(u.propertyId);
+                        onNavigate("facturas");
+                      }}
+                    >
+                      <span className="min-w-0">
+                        <span className="block truncate text-[14px] font-medium text-ink-900">
+                          {u.buildingName} · {u.label}
+                        </span>
+                        <span className="text-[12px] text-ink-500">
+                          {u.overdue
+                            ? "Sin pago"
+                            : `Pendiente ${money(u.pending)}`}
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-[13px] font-semibold tabular-nums text-ink-700">
+                        {money(u.due)}
+                      </span>
+                    </button>
+                  ))}
+              </div>
+            )}
+            <Button
+              className="mt-3"
+              variant="secondary"
+              block
+              size="sm"
+              onClick={goBilling}
+            >
+              Ir a facturas
+            </Button>
+          </Card>
+        </section>
+      )}
+
       <section>
         <SectionHeading title="Accesos rápidos" />
         <QuickActions actions={actions} />
@@ -374,6 +480,14 @@ export function HomePage({ property, loading, onNavigate, onOpenMore }: Props) {
                   />
                 </div>
               )}
+              {property.paymentDetails &&
+                (property.paymentDetails.alias ||
+                  property.paymentDetails.cbu ||
+                  property.paymentDetails.holder) && (
+                  <div className="border-t border-sand-200/70 px-4 py-3.5">
+                    <PaymentDetailsCard details={property.paymentDetails} />
+                  </div>
+                )}
               <ListRow
                 icon={<ReceiptIcon className="size-[18px]" />}
                 title="Facturas del mes"

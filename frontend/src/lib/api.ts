@@ -3,6 +3,9 @@ import type {
   Building,
   Claim,
   Contract,
+  CreatedInvite,
+  InvitePreview,
+  MonthSummary,
   Notification,
   Property,
   Tenancy,
@@ -115,20 +118,6 @@ async function request<T>(
 }
 
 export const api = {
-  register(body: { email: string; password: string; name: string; phone?: string }) {
-    return request<AuthResult>(
-      "/api/auth/register",
-      { method: "POST", body: JSON.stringify(body) },
-      false,
-    );
-  },
-  login(body: { email: string; password: string }) {
-    return request<AuthResult>(
-      "/api/auth/login",
-      { method: "POST", body: JSON.stringify(body) },
-      false,
-    );
-  },
   loginWithGoogle(body: { idToken: string }) {
     return request<AuthResult>(
       "/api/auth/google",
@@ -152,7 +141,13 @@ export const api = {
   me() {
     return request<User>("/api/auth/me");
   },
-  updateMe(body: { name?: string; phone?: string }) {
+  updateMe(body: {
+    name?: string;
+    phone?: string;
+    paymentAlias?: string;
+    paymentCbu?: string;
+    paymentHolder?: string;
+  }) {
     return request<User>("/api/auth/me", {
       method: "PATCH",
       body: JSON.stringify(body),
@@ -169,7 +164,15 @@ export const api = {
   },
   updateBuilding(
     id: string,
-    body: Partial<{ name: string; address: string; city: string; notes: string }>,
+    body: Partial<{
+      name: string;
+      address: string;
+      city: string;
+      notes: string;
+      paymentAlias: string;
+      paymentCbu: string;
+      paymentHolder: string;
+    }>,
   ) {
     return request<Building>(`/api/buildings/${id}`, {
       method: "PATCH",
@@ -216,6 +219,21 @@ export const api = {
       body: JSON.stringify(body),
     });
   },
+  createInvite(propertyId: string, body?: { sharePercentage?: number }) {
+    return request<CreatedInvite>(`/api/properties/${propertyId}/invites`, {
+      method: "POST",
+      body: JSON.stringify(body ?? {}),
+    });
+  },
+  invitePreview(token: string) {
+    return request<InvitePreview>(`/api/invites/${encodeURIComponent(token)}`, {}, false);
+  },
+  acceptInvite(token: string) {
+    return request<{ propertyId: string; tenancyId: string }>(
+      `/api/invites/${encodeURIComponent(token)}/accept`,
+      { method: "POST" },
+    );
+  },
   removeTenant(propertyId: string, tenancyId: string) {
     return request(`/api/properties/${propertyId}/tenants/${tenancyId}`, {
       method: "DELETE",
@@ -249,6 +267,9 @@ export const api = {
   },
   getPeriod(id: string) {
     return request<BillingPeriod>(`/api/billing/periods/${id}`);
+  },
+  monthSummary() {
+    return request<MonthSummary>("/api/billing/month-summary");
   },
   addInvoice(periodId: string, form: FormData) {
     return request(`/api/billing/periods/${periodId}/invoices`, {

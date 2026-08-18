@@ -16,7 +16,7 @@ export async function signInWithGoogle(): Promise<string> {
 
   if (!isFirebaseConfigured()) {
     throw new Error(
-      "Inicio con Google no está configurado. Faltan variables VITE_FIREBASE_*.",
+      "Inicio con Google no está configurado.",
     );
   }
 

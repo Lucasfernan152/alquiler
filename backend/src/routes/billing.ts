@@ -6,10 +6,19 @@ import { persistUpload, upload } from "../lib/upload.js";
 import { requireAuth } from "../middleware/auth.js";
 import { AppError } from "../middleware/error.js";
 import { assertPropertyOwner, assertPropertyTenantOrOwner } from "../services/access.js";
-import { markPeriodReady, maybeAutoMarkPeriodReady } from "../services/billing.js";
+import { markPeriodReady, maybeAutoMarkPeriodReady, ownerMonthSummary } from "../services/billing.js";
 
 export const billingRouter = Router();
 billingRouter.use(requireAuth);
+
+billingRouter.get("/month-summary", async (req, res, next) => {
+  try {
+    const summary = await ownerMonthSummary(req.user!.id);
+    res.json(summary);
+  } catch (err) {
+    next(err);
+  }
+});
 
 billingRouter.post("/periods", async (_req, res) => {
   // Los períodos se crean solos desde el inicio del contrato.

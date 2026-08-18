@@ -1,6 +1,5 @@
-import { useState } from "react";
 import type { ButtonHTMLAttributes, CSSProperties, ReactNode } from "react";
-import { ChevronRightIcon, EyeIcon, EyeOffIcon } from "./icons";
+import { ChevronRightIcon } from "./icons";
 
 export function cx(...values: Array<string | false | null | undefined>) {
   return values.filter(Boolean).join(" ");
@@ -255,51 +254,6 @@ export function ListRow({
 export const inputClass =
   "w-full rounded-xl border border-sand-200 bg-sand-50 px-3.5 py-3 text-[15px] text-ink-900 " +
   "placeholder:text-ink-400 focus:border-brand-400 focus:bg-white focus:ring-2 focus:ring-brand-100";
-
-export function PasswordInput({
-  value,
-  onChange,
-  placeholder,
-  minLength,
-  required,
-  autoComplete,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  placeholder?: string;
-  minLength?: number;
-  required?: boolean;
-  autoComplete?: string;
-}) {
-  const [visible, setVisible] = useState(false);
-
-  return (
-    <div className="relative">
-      <input
-        className={cx(inputClass, "pr-12")}
-        type={visible ? "text" : "password"}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        minLength={minLength}
-        required={required}
-        autoComplete={autoComplete}
-      />
-      <button
-        type="button"
-        onClick={() => setVisible((v) => !v)}
-        aria-label={visible ? "Ocultar contraseña" : "Mostrar contraseña"}
-        className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-ink-400 transition active:text-ink-700"
-      >
-        {visible ? (
-          <EyeOffIcon className="size-[18px]" />
-        ) : (
-          <EyeIcon className="size-[18px]" />
-        )}
-      </button>
-    </div>
-  );
-}
 
 export function Field({
   label,

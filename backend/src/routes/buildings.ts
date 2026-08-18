@@ -6,6 +6,18 @@ import { AppError } from "../middleware/error.js";
 import { assertBuildingOwner, assertPropertyOwner } from "../services/access.js";
 import { ensureBillingPeriods } from "../services/billing.js";
 import { enrichContractWithEstimate } from "../services/contracts.js";
+import { resolvePaymentDetails } from "../domain/payment.js";
+import { mountPropertyInviteRoute } from "./invites.js";
+
+const ownerPaymentSelect = {
+  id: true,
+  name: true,
+  email: true,
+  phone: true,
+  paymentAlias: true,
+  paymentCbu: true,
+  paymentHolder: true,
+} as const;
 
 export const buildingsRouter = Router();
 buildingsRouter.use(requireAuth);
@@ -66,6 +78,9 @@ buildingsRouter.patch("/:id", async (req, res, next) => {
         address: z.string().min(1).optional(),
         city: z.string().optional(),
         notes: z.string().optional(),
+        paymentAlias: z.string().trim().max(80).optional(),
+        paymentCbu: z.string().trim().max(40).optional(),
+        paymentHolder: z.string().trim().max(120).optional(),
       })
       .parse(req.body);
     const building = await prisma.building.update({
@@ -147,7 +162,7 @@ propertiesRouter.get("/:id", async (req, res, next) => {
       include: {
         building: {
           include: {
-            owner: { select: { id: true, name: true, email: true, phone: true } },
+            owner: { select: ownerPaymentSelect },
           },
         },
         tenancies: {
@@ -188,6 +203,7 @@ propertiesRouter.get("/:id", async (req, res, next) => {
       contracts,
       role: isOwner ? "owner" : "tenant",
       myShare: myTenancy?.sharePercentage ?? 100,
+      paymentDetails: resolvePaymentDetails(property.building, property.building.owner),
     });
   } catch (err) {
     next(err);
@@ -266,6 +282,8 @@ propertiesRouter.delete("/:id/tenants/:tenancyId", async (req, res, next) => {
     next(err);
   }
 });
+
+mountPropertyInviteRoute(propertiesRouter);
 
 propertiesRouter.post("/:id/emergency-contacts", async (req, res, next) => {
   try {

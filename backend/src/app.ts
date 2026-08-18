@@ -14,6 +14,7 @@ import { billingRouter } from "./routes/billing.js";
 import { paymentsRouter } from "./routes/payments.js";
 import { claimsRouter } from "./routes/claims.js";
 import { notificationsRouter } from "./routes/notifications.js";
+import { invitesRouter } from "./routes/invites.js";
 import { jobsRouter } from "./routes/jobs.js";
 
 /** Orígenes del WebView de Capacitor (Android usa https, iOS capacitor://). */
@@ -52,6 +53,7 @@ export function createApp() {
   app.use("/api/payments", paymentsRouter);
   app.use("/api/claims", claimsRouter);
   app.use("/api/notifications", notificationsRouter);
+  app.use("/api/invites", invitesRouter);
   app.use("/api/jobs", jobsRouter);
 
   // Query `u` = path local o URL de Blob. Token por header o ?access_token=

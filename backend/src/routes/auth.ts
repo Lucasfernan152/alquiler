@@ -1,5 +1,4 @@
 import { Router } from "express";
-import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
@@ -13,25 +12,6 @@ import {
 } from "../middleware/auth.js";
 import { AppError } from "../middleware/error.js";
 
-const phoneSchema = z
-  .string()
-  .trim()
-  .max(40)
-  .optional()
-  .transform((v) => v ?? "");
-
-const registerSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(6),
-  name: z.string().min(1),
-  phone: phoneSchema,
-});
-
-const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(1),
-});
-
 const googleSchema = z.object({
   idToken: z.string().min(1),
 });
@@ -39,7 +19,46 @@ const googleSchema = z.object({
 const updateMeSchema = z.object({
   name: z.string().min(1).optional(),
   phone: z.string().trim().max(40).optional(),
+  paymentAlias: z.string().trim().max(80).optional(),
+  paymentCbu: z.string().trim().max(40).optional(),
+  paymentHolder: z.string().trim().max(120).optional(),
 });
+
+const meSelect = {
+  id: true,
+  email: true,
+  name: true,
+  phone: true,
+  paymentAlias: true,
+  paymentCbu: true,
+  paymentHolder: true,
+  buildings: { select: { id: true }, take: 1 },
+  tenancies: { where: { active: true }, select: { id: true }, take: 1 },
+} as const;
+
+function toMeJson(user: {
+  id: string;
+  email: string;
+  name: string;
+  phone: string;
+  paymentAlias: string;
+  paymentCbu: string;
+  paymentHolder: string;
+  buildings: { id: string }[];
+  tenancies: { id: string }[];
+}) {
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    phone: user.phone,
+    paymentAlias: user.paymentAlias,
+    paymentCbu: user.paymentCbu,
+    paymentHolder: user.paymentHolder,
+    isOwner: user.buildings.length > 0,
+    isTenant: user.tenancies.length > 0,
+  };
+}
 
 function authPayload(user: { id: string; email: string; name: string; phone: string }) {
   const authUser: AuthUser = { id: user.id, email: user.email, name: user.name };
@@ -51,47 +70,6 @@ function authPayload(user: { id: string; email: string; name: string; phone: str
 }
 
 export const authRouter = Router();
-
-authRouter.post("/register", async (req, res, next) => {
-  try {
-    const body = registerSchema.parse(req.body);
-    const existing = await prisma.user.findUnique({ where: { email: body.email } });
-    if (existing) throw new AppError(409, "Ese email ya está registrado");
-    const passwordHash = await bcrypt.hash(body.password, 10);
-    const user = await prisma.user.create({
-      data: {
-        email: body.email.toLowerCase(),
-        passwordHash,
-        name: body.name,
-        phone: body.phone,
-      },
-    });
-    res.status(201).json(authPayload(user));
-  } catch (err) {
-    next(err instanceof z.ZodError ? new AppError(400, err.issues[0]?.message ?? "Datos inválidos") : err);
-  }
-});
-
-authRouter.post("/login", async (req, res, next) => {
-  try {
-    const body = loginSchema.parse(req.body);
-    const user = await prisma.user.findUnique({
-      where: { email: body.email.toLowerCase() },
-    });
-    if (!user) {
-      throw new AppError(401, "Email o contraseña incorrectos");
-    }
-    if (!user.passwordHash) {
-      throw new AppError(401, "Iniciá sesión con Google");
-    }
-    if (!(await bcrypt.compare(body.password, user.passwordHash))) {
-      throw new AppError(401, "Email o contraseña incorrectos");
-    }
-    res.json(authPayload(user));
-  } catch (err) {
-    next(err instanceof z.ZodError ? new AppError(400, "Datos inválidos") : err);
-  }
-});
 
 authRouter.post("/google", async (req, res, next) => {
   try {
@@ -158,24 +136,10 @@ authRouter.get("/me", requireAuth, async (req, res, next) => {
   try {
     const user = await prisma.user.findUnique({
       where: { id: req.user!.id },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        phone: true,
-        buildings: { select: { id: true }, take: 1 },
-        tenancies: { where: { active: true }, select: { id: true }, take: 1 },
-      },
+      select: meSelect,
     });
     if (!user) throw new AppError(404, "Usuario no encontrado");
-    res.json({
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      phone: user.phone,
-      isOwner: user.buildings.length > 0,
-      isTenant: user.tenancies.length > 0,
-    });
+    res.json(toMeJson(user));
   } catch (err) {
     next(err);
   }
@@ -189,24 +153,17 @@ authRouter.patch("/me", requireAuth, async (req, res, next) => {
       data: {
         ...(body.name !== undefined ? { name: body.name } : {}),
         ...(body.phone !== undefined ? { phone: body.phone } : {}),
+        ...(body.paymentAlias !== undefined
+          ? { paymentAlias: body.paymentAlias }
+          : {}),
+        ...(body.paymentCbu !== undefined ? { paymentCbu: body.paymentCbu } : {}),
+        ...(body.paymentHolder !== undefined
+          ? { paymentHolder: body.paymentHolder }
+          : {}),
       },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        phone: true,
-        buildings: { select: { id: true }, take: 1 },
-        tenancies: { where: { active: true }, select: { id: true }, take: 1 },
-      },
+      select: meSelect,
     });
-    res.json({
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      phone: user.phone,
-      isOwner: user.buildings.length > 0,
-      isTenant: user.tenancies.length > 0,
-    });
+    res.json(toMeJson(user));
   } catch (err) {
     next(err instanceof z.ZodError ? new AppError(400, "Datos inválidos") : err);
   }
