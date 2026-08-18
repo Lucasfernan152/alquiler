@@ -18,7 +18,7 @@ buildingsRouter.get("/", async (req, res, next) => {
           include: {
             tenancies: {
               where: { active: true },
-              include: { tenant: { select: { id: true, name: true, email: true } } },
+              include: { tenant: { select: { id: true, name: true, email: true, phone: true } } },
             },
           },
         },
@@ -144,10 +144,14 @@ propertiesRouter.get("/:id", async (req, res, next) => {
     const property = await prisma.property.findUnique({
       where: { id: propertyId },
       include: {
-        building: true,
+        building: {
+          include: {
+            owner: { select: { id: true, name: true, email: true, phone: true } },
+          },
+        },
         tenancies: {
           where: { active: true },
-          include: { tenant: { select: { id: true, name: true, email: true } } },
+          include: { tenant: { select: { id: true, name: true, email: true, phone: true } } },
         },
         contracts: { where: { active: true }, orderBy: { createdAt: "desc" } },
         emergencyContacts: true,
@@ -157,14 +161,14 @@ propertiesRouter.get("/:id", async (req, res, next) => {
           include: {
             invoices: true,
             payments: {
-              include: { tenant: { select: { id: true, name: true, email: true } } },
+              include: { tenant: { select: { id: true, name: true, email: true, phone: true } } },
             },
           },
         },
         claims: {
           orderBy: { createdAt: "desc" },
           take: 50,
-          include: { author: { select: { id: true, name: true, email: true } } },
+          include: { author: { select: { id: true, name: true, email: true, phone: true } } },
         },
       },
     });
@@ -234,7 +238,7 @@ propertiesRouter.post("/:id/tenants", async (req, res, next) => {
         active: true,
         endDate: null,
       },
-      include: { tenant: { select: { id: true, name: true, email: true } } },
+      include: { tenant: { select: { id: true, name: true, email: true, phone: true } } },
     });
     res.status(201).json(tenancy);
   } catch (err) {

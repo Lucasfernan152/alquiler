@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ContactActions } from "../components/ContactActions";
 import { QuickActions } from "../components/QuickActions";
 import type { QuickAction } from "../components/QuickActions";
 import { Screen } from "../components/Screen";
@@ -80,6 +81,7 @@ export function HomePage({ property, loading, onNavigate }: Props) {
   const tenantDues = duesByTenant(property, period?.id);
   const contacts = property.emergencyContacts ?? [];
   const tenants = property.tenancies ?? [];
+  const owner = property.building?.owner;
   const openClaims = (property.claims ?? []).filter(
     (c) => c.status === "open" || c.status === "in_progress",
   );
@@ -312,19 +314,40 @@ export function HomePage({ property, loading, onNavigate }: Props) {
               onClick={() => onNavigate("mas")}
             />
           ) : (
-            <ListRow
-              icon={<ReceiptIcon className="size-[18px]" />}
-              title="Facturas del mes"
-              meta={
-                period
-                  ? share === 100
-                    ? period.label
-                    : `${period.label} · tu ${share}%`
-                  : "Sin período abierto"
-              }
-              value={period ? money(due) : undefined}
-              onClick={goBilling}
-            />
+            <>
+              {owner && (
+                <div className="flex items-center gap-3 px-4 py-3.5">
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-sand-100 text-ink-500">
+                    <UsersIcon className="size-[18px]" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[15px] font-medium text-ink-900">
+                      {owner.name}
+                    </span>
+                    <span className="mt-0.5 block truncate text-[13px] text-ink-500">
+                      {owner.phone || "Dueño · sin teléfono cargado"}
+                    </span>
+                  </span>
+                  <ContactActions
+                    phone={owner.phone}
+                    waText={`Hola ${owner.name}, te escribo por la unidad ${property.label}.`}
+                  />
+                </div>
+              )}
+              <ListRow
+                icon={<ReceiptIcon className="size-[18px]" />}
+                title="Facturas del mes"
+                meta={
+                  period
+                    ? share === 100
+                      ? period.label
+                      : `${period.label} · tu ${share}%`
+                    : "Sin período abierto"
+                }
+                value={period ? money(due) : undefined}
+                onClick={goBilling}
+              />
+            </>
           )}
           <ListRow
             icon={<WrenchIcon className="size-[18px]" />}

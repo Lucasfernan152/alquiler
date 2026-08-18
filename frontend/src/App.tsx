@@ -54,10 +54,18 @@ export default function App() {
 
   // La key remonta el shell en cada cambio de cuenta: sin ella, la sesión
   // siguiente hereda las propiedades y avisos de la anterior.
-  return <AppShell key={user.id} user={user} onLogout={logout} />;
+  return <AppShell key={user.id} user={user} onUserUpdated={setUser} onLogout={logout} />;
 }
 
-function AppShell({ user, onLogout }: { user: User; onLogout: () => void }) {
+function AppShell({
+  user,
+  onUserUpdated,
+  onLogout,
+}: {
+  user: User;
+  onUserUpdated: (user: User) => void;
+  onLogout: () => void;
+}) {
   const [tab, setTab] = useState<Tab>("inicio");
   const [tabHistory, setTabHistory] = useState<Tab[]>([]);
   const [optionsKey, setOptionsKey] = useState(0);
@@ -236,6 +244,7 @@ function AppShell({ user, onLogout }: { user: User; onLogout: () => void }) {
                     reloadProperty={reload}
                     reloadOptions={() => setOptionsKey((k) => k + 1)}
                     onSelectProperty={setSelectedId}
+                    onUserUpdated={onUserUpdated}
                     onLogout={onLogout}
                     focusSheet={
                       focusReady && navFocus?.tab === "mas" ? navFocus.sheet : null

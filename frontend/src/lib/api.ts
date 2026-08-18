@@ -115,7 +115,7 @@ async function request<T>(
 }
 
 export const api = {
-  register(body: { email: string; password: string; name: string }) {
+  register(body: { email: string; password: string; name: string; phone?: string }) {
     return request<AuthResult>(
       "/api/auth/register",
       { method: "POST", body: JSON.stringify(body) },
@@ -144,6 +144,12 @@ export const api = {
   },
   me() {
     return request<User>("/api/auth/me");
+  },
+  updateMe(body: { name?: string; phone?: string }) {
+    return request<User>("/api/auth/me", {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
   },
   buildings() {
     return request<Building[]>("/api/buildings");

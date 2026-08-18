@@ -15,6 +15,7 @@ export function AuthPage({ onAuth }: { onAuth: (user: User) => void }) {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -27,7 +28,7 @@ export function AuthPage({ onAuth }: { onAuth: (user: User) => void }) {
       const res =
         mode === "login"
           ? await api.login({ email, password })
-          : await api.register({ email, password, name });
+          : await api.register({ email, password, name, phone });
       setTokens(res.accessToken, res.refreshToken);
       onAuth(await api.me());
     } catch (err) {
@@ -64,15 +65,30 @@ export function AuthPage({ onAuth }: { onAuth: (user: User) => void }) {
 
           <form className="mt-5 space-y-3" onSubmit={submit}>
             {mode === "register" && (
-              <Field label="Nombre">
-                <input
-                  className={inputClass}
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Tu nombre"
-                  required
-                />
-              </Field>
+              <>
+                <Field label="Nombre">
+                  <input
+                    className={inputClass}
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Tu nombre"
+                    required
+                  />
+                </Field>
+                <Field
+                  label="Teléfono"
+                  hint="Con código de área. Sirve para que te llamen o escriban por WhatsApp."
+                >
+                  <input
+                    className={inputClass}
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="11 5555 0101"
+                    required
+                  />
+                </Field>
+              </>
             )}
             <Field label="Email">
               <input

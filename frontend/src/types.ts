@@ -2,6 +2,7 @@ export type User = {
   id: string;
   email: string;
   name: string;
+  phone?: string;
   isOwner?: boolean;
   isTenant?: boolean;
 };
@@ -23,6 +24,8 @@ export type Building = {
   address: string;
   city: string;
   notes: string;
+  ownerId?: string;
+  owner?: { id: string; name: string; email: string; phone?: string };
   properties: Property[];
 };
 
@@ -50,7 +53,7 @@ export type Tenancy = {
   tenantId: string;
   sharePercentage: number;
   active: boolean;
-  tenant?: { id: string; name: string; email: string };
+  tenant?: { id: string; name: string; email: string; phone?: string };
   property?: Property;
 };
 
@@ -107,7 +110,7 @@ export type Payment = {
   status: "pending" | "approved" | "rejected";
   reviewNote: string;
   createdAt: string;
-  tenant?: { id: string; name: string; email: string };
+  tenant?: { id: string; name: string; email: string; phone?: string };
 };
 
 export type Claim = {
@@ -118,7 +121,7 @@ export type Claim = {
   photoPath: string | null;
   response: string;
   assignedTo: string;
-  author?: { id: string; name: string; email: string };
+  author?: { id: string; name: string; email: string; phone?: string };
   createdAt: string;
 };
 

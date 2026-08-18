@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { api } from "../lib/api";
 import { ContractForm } from "../components/ContractForm";
+import { ContactActions } from "../components/ContactActions";
 import { Screen } from "../components/Screen";
 import {
   BuildingIcon,
@@ -38,6 +39,7 @@ type Props = {
   reloadProperty: () => Promise<void>;
   reloadOptions: () => void;
   onSelectProperty: (propertyId: string) => void;
+  onUserUpdated: (user: User) => void;
   onLogout: () => void;
   focusSheet?: "contract" | null;
   onFocusHandled?: () => void;
@@ -49,6 +51,7 @@ type Sheet =
   | "contract"
   | "tenants"
   | "contacts"
+  | "profile"
   | "newBuilding"
   | null;
 
@@ -59,6 +62,7 @@ export function MorePage({
   reloadProperty,
   reloadOptions,
   onSelectProperty,
+  onUserUpdated,
   onLogout,
   focusSheet,
   onFocusHandled,
@@ -76,9 +80,18 @@ export function MorePage({
 
   const isOwner = property?.role === "owner";
   const building = buildings.find((b) => b.id === property?.buildingId);
+  const owner = property?.building?.owner;
   const contract = property?.contracts?.[0];
   const contacts = property?.emergencyContacts ?? [];
   const tenants = property?.tenancies ?? [];
+
+  const [profileName, setProfileName] = useState(user.name);
+  const [profilePhone, setProfilePhone] = useState(user.phone ?? "");
+
+  useEffect(() => {
+    setProfileName(user.name);
+    setProfilePhone(user.phone ?? "");
+  }, [user.id, user.name, user.phone]);
 
   const [buildingName, setBuildingName] = useState("");
   const [buildingAddress, setBuildingAddress] = useState("");
@@ -216,6 +229,24 @@ export function MorePage({
     });
   }
 
+  async function saveProfile(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      const updated = await api.updateMe({
+        name: profileName.trim(),
+        phone: profilePhone.trim(),
+      });
+      onUserUpdated(updated);
+      setSheet(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Algo salió mal");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function saveContract(form: FormData) {
     if (!property) return;
     const propertyId = property.id;
@@ -287,6 +318,19 @@ export function MorePage({
                 onClick={() => setSheet("tenants")}
               />
             )}
+            {!isOwner && owner && (
+              <ListRow
+                icon={<UserIcon className="size-[18px]" />}
+                title={owner.name}
+                meta={owner.phone || owner.email || "Dueño"}
+                right={
+                  <ContactActions
+                    phone={owner.phone}
+                    waText={`Hola ${owner.name}, te escribo por la unidad ${property?.label ?? ""}.`}
+                  />
+                }
+              />
+            )}
             <ListRow
               icon={<PhoneIcon className="size-[18px]" />}
               title="Contactos de emergencia"
@@ -341,7 +385,8 @@ export function MorePage({
           <ListRow
             icon={<UserIcon className="size-[18px]" />}
             title={user.name}
-            meta={user.email}
+            meta={user.phone ? `${user.phone} · ${user.email}` : user.email}
+            onClick={() => setSheet("profile")}
           />
           <ListRow
             icon={<LogoutIcon className="size-[18px]" />}
@@ -352,6 +397,42 @@ export function MorePage({
       </section>
 
       <ErrorText>{error}</ErrorText>
+
+      {sheet === "profile" && (
+        <Screen title="Tu perfil" onClose={() => setSheet(null)}>
+          <Card>
+            <form className="space-y-4" onSubmit={saveProfile}>
+              <Field label="Nombre">
+                <input
+                  className={inputClass}
+                  value={profileName}
+                  onChange={(e) => setProfileName(e.target.value)}
+                  required
+                />
+              </Field>
+              <Field label="Email" hint="El email no se puede cambiar por ahora.">
+                <input className={inputClass} value={user.email} disabled />
+              </Field>
+              <Field
+                label="Teléfono"
+                hint="Con esto el dueño o el inquilino te pueden llamar o escribir por WhatsApp."
+              >
+                <input
+                  className={inputClass}
+                  type="tel"
+                  value={profilePhone}
+                  onChange={(e) => setProfilePhone(e.target.value)}
+                  placeholder="11 5555 0101"
+                  required
+                />
+              </Field>
+              <Button block loading={busy}>
+                Guardar
+              </Button>
+            </form>
+          </Card>
+        </Screen>
+      )}
 
       {sheet === "building" && building && (
         <Screen title="Edificio" onClose={() => setSheet(null)}>
@@ -638,22 +719,36 @@ export function MorePage({
           {tenants.length > 0 ? (
             <CardList>
               {tenants.map((tenancy) => (
-                <ListRow
+                <div
                   key={tenancy.id}
-                  title={tenancy.tenant?.name ?? "Inquilino"}
-                  meta={tenancy.tenant?.email}
-                  right={
-                    <>
+                  className="flex items-center gap-3 px-4 py-3.5"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[15px] font-medium text-ink-900">
+                      {tenancy.tenant?.name ?? "Inquilino"}
+                    </p>
+                    <p className="mt-0.5 truncate text-[13px] text-ink-500">
+                      {[tenancy.tenant?.phone, tenancy.tenant?.email]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </p>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
                       <Badge>{tenancy.sharePercentage}%</Badge>
                       <LinkButton
                         tone="danger"
-                        onClick={() => run(() => api.removeTenant(property.id, tenancy.id))}
+                        onClick={() =>
+                          run(() => api.removeTenant(property.id, tenancy.id))
+                        }
                       >
                         Quitar
                       </LinkButton>
-                    </>
-                  }
-                />
+                    </div>
+                  </div>
+                  <ContactActions
+                    phone={tenancy.tenant?.phone}
+                    waText={`Hola ${tenancy.tenant?.name ?? ""}, te escribo por la unidad ${property.label}.`}
+                  />
+                </div>
               ))}
             </CardList>
           ) : (

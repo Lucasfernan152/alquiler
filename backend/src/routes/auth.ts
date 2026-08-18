@@ -12,15 +12,28 @@ import {
 } from "../middleware/auth.js";
 import { AppError } from "../middleware/error.js";
 
+const phoneSchema = z
+  .string()
+  .trim()
+  .max(40)
+  .optional()
+  .transform((v) => v ?? "");
+
 const registerSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
   name: z.string().min(1),
+  phone: phoneSchema,
 });
 
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
+});
+
+const updateMeSchema = z.object({
+  name: z.string().min(1).optional(),
+  phone: z.string().trim().max(40).optional(),
 });
 
 export const authRouter = Router();
@@ -36,11 +49,12 @@ authRouter.post("/register", async (req, res, next) => {
         email: body.email.toLowerCase(),
         passwordHash,
         name: body.name,
+        phone: body.phone,
       },
     });
     const authUser: AuthUser = { id: user.id, email: user.email, name: user.name };
     res.status(201).json({
-      user: authUser,
+      user: { ...authUser, phone: user.phone },
       accessToken: signAccessToken(authUser),
       refreshToken: signRefreshToken(authUser),
     });
@@ -60,7 +74,7 @@ authRouter.post("/login", async (req, res, next) => {
     }
     const authUser: AuthUser = { id: user.id, email: user.email, name: user.name };
     res.json({
-      user: authUser,
+      user: { ...authUser, phone: user.phone },
       accessToken: signAccessToken(authUser),
       refreshToken: signRefreshToken(authUser),
     });
@@ -77,7 +91,7 @@ authRouter.post("/refresh", async (req, res, next) => {
     if (!user) throw new AppError(401, "Usuario no encontrado");
     const authUser: AuthUser = { id: user.id, email: user.email, name: user.name };
     res.json({
-      user: authUser,
+      user: { ...authUser, phone: user.phone },
       accessToken: signAccessToken(authUser),
       refreshToken: signRefreshToken(authUser),
     });
@@ -94,6 +108,7 @@ authRouter.get("/me", requireAuth, async (req, res, next) => {
         id: true,
         email: true,
         name: true,
+        phone: true,
         buildings: { select: { id: true }, take: 1 },
         tenancies: { where: { active: true }, select: { id: true }, take: 1 },
       },
@@ -103,10 +118,42 @@ authRouter.get("/me", requireAuth, async (req, res, next) => {
       id: user.id,
       email: user.email,
       name: user.name,
+      phone: user.phone,
       isOwner: user.buildings.length > 0,
       isTenant: user.tenancies.length > 0,
     });
   } catch (err) {
     next(err);
+  }
+});
+
+authRouter.patch("/me", requireAuth, async (req, res, next) => {
+  try {
+    const body = updateMeSchema.parse(req.body);
+    const user = await prisma.user.update({
+      where: { id: req.user!.id },
+      data: {
+        ...(body.name !== undefined ? { name: body.name } : {}),
+        ...(body.phone !== undefined ? { phone: body.phone } : {}),
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        phone: true,
+        buildings: { select: { id: true }, take: 1 },
+        tenancies: { where: { active: true }, select: { id: true }, take: 1 },
+      },
+    });
+    res.json({
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      phone: user.phone,
+      isOwner: user.buildings.length > 0,
+      isTenant: user.tenancies.length > 0,
+    });
+  } catch (err) {
+    next(err instanceof z.ZodError ? new AppError(400, "Datos inválidos") : err);
   }
 });
