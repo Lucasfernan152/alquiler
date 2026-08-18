@@ -32,6 +32,7 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [booting, setBooting] = useState(true);
   const [pendingInvite, setPendingInvite] = useState<string | null>(null);
+  const [joinedPropertyId, setJoinedPropertyId] = useState<string | null>(null);
 
   useEffect(() => {
     const token = readPendingInviteToken();
@@ -67,8 +68,6 @@ export default function App() {
     const token = readPendingInviteToken();
     if (token) setPendingInvite(token);
   }
-
-  const [joinedPropertyId, setJoinedPropertyId] = useState<string | null>(null);
 
   // La key remonta el shell en cada cambio de cuenta: sin ella, la sesión
   // siguiente hereda las propiedades y avisos de la anterior.
