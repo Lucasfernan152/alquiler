@@ -29,7 +29,7 @@ export function Screen({
         </div>
       </div>
 
-      <div className="mx-auto max-w-3xl space-y-4 px-4 pb-24 pt-4">{children}</div>
+      <div className="pb-nav mx-auto max-w-3xl space-y-4 px-4 pt-4">{children}</div>
     </div>
   );
 }

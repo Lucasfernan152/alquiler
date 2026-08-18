@@ -1,4 +1,4 @@
-import { BellIcon, UserIcon } from "./icons";
+import { BellIcon, BrandMarkIcon, UserIcon } from "./icons";
 
 type Props = {
   unread: number;
@@ -10,7 +10,10 @@ export function AppHeader({ unread, onOpenNotifications, onOpenProfile }: Props)
   return (
     <header className="safe-top bg-brand-700 pb-14 text-white">
       <div className="mx-auto flex max-w-3xl items-center justify-between px-4 pb-1">
-        <p className="text-[17px] font-semibold tracking-[-0.02em]">Alquiler</p>
+        <div className="flex items-center gap-2">
+          <BrandMarkIcon className="size-[22px]" />
+          <p className="text-[17px] font-semibold tracking-[-0.02em]">Rently</p>
+        </div>
 
         <div className="flex items-center gap-0.5">
           <button

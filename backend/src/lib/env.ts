@@ -40,7 +40,7 @@ export const env = {
     port: Number(process.env.SMTP_PORT ?? 587),
     user: process.env.SMTP_USER ?? "",
     pass: process.env.SMTP_PASS ?? "",
-    from: process.env.SMTP_FROM ?? "Alquiler <noreply@alquiler.local>",
+    from: process.env.SMTP_FROM ?? "Rently <noreply@alquiler.local>",
   },
   firebaseServiceAccount: process.env.FIREBASE_SERVICE_ACCOUNT ?? "",
   /** true en Vercel / serverless (sin disco persistente ni node-cron). */

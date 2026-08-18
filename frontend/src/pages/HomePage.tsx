@@ -25,14 +25,21 @@ import {
   money,
   longDate,
 } from "../components/ui";
-import { api } from "../lib/api";
 import { amountDue, duesByTenant, rentOf, shareParties, splitsByPercentage, viewerShare } from "../lib/billing";
+import {
+  estimateNextRent,
+  resolveNextIncreaseDate,
+} from "../lib/rentIncrease";
 import type { Property, Tab } from "../types";
+
+type MoreSheet = "contract" | "tenants";
 
 type Props = {
   property: Property | null;
   loading: boolean;
   onNavigate: (tab: Tab) => void;
+  /** Abre Más ya dentro de contrato / inquilinos. */
+  onOpenMore: (sheet: MoreSheet) => void;
 };
 
 type Focus = {
@@ -45,7 +52,7 @@ type Focus = {
   calm?: boolean;
 };
 
-export function HomePage({ property, loading, onNavigate }: Props) {
+export function HomePage({ property, loading, onNavigate, onOpenMore }: Props) {
   const [showContacts, setShowContacts] = useState(false);
 
   if (loading && !property) {
@@ -73,7 +80,7 @@ export function HomePage({ property, loading, onNavigate }: Props) {
   const contract = property.contracts?.[0];
   const period = property.billingPeriods?.[0];
   const invoices = period?.invoices ?? [];
-  const rent = rentOf(property);
+  const rent = rentOf(property, period?.id);
   const share = viewerShare(property);
   const due = amountDue(property, period?.id);
   const parties = shareParties(property);
@@ -88,6 +95,10 @@ export function HomePage({ property, loading, onNavigate }: Props) {
   const pendingPayment = (period?.payments ?? []).find((p) => p.status === "pending");
   const goBilling = () => onNavigate("facturas");
   const hasContract = Boolean(contract);
+  const nextIncrease = contract ? resolveNextIncreaseDate(contract) : null;
+  const increasePct = contract?.estimatedIncreasePct ?? null;
+  const estimatedRent =
+    contract?.estimatedRent ?? (contract ? estimateNextRent(contract) : null);
 
   const focusAmount =
     isOwner && splitting && parties.length > 1
@@ -95,6 +106,19 @@ export function HomePage({ property, loading, onNavigate }: Props) {
       : due;
 
   function buildFocus(): Focus {
+    if (isOwner && contract?.increaseDue && estimatedRent != null) {
+      return {
+        eyebrow: "Aumento",
+        amount: estimatedRent,
+        title: "Llegó la fecha de aumento",
+        meta: `Hoy el alquiler es ${money(contract.rentAmount)}${
+          increasePct != null ? ` · estimado +${increasePct}%` : ""
+        }. Aplicarlo avisa al inquilino.`,
+        badge: { label: "Pendiente", tone: "warn" },
+        cta: { label: "Aplicar aumento", onClick: () => onOpenMore("contract") },
+      };
+    }
+
     if (!period) {
       return {
         eyebrow: "Este mes",
@@ -108,7 +132,8 @@ export function HomePage({ property, loading, onNavigate }: Props) {
         cta: isOwner
           ? {
               label: hasContract ? "Ver facturas" : "Cargar contrato",
-              onClick: () => onNavigate(hasContract ? "facturas" : "mas"),
+              onClick: () =>
+                hasContract ? onNavigate("facturas") : onOpenMore("contract"),
             }
           : undefined,
       };
@@ -216,7 +241,7 @@ export function HomePage({ property, loading, onNavigate }: Props) {
           id: "tenants",
           label: "Inquilinos",
           icon: <UsersIcon className="size-[22px]" />,
-          onClick: () => onNavigate("mas"),
+          onClick: () => onOpenMore("tenants"),
         },
       ]
     : [
@@ -236,7 +261,7 @@ export function HomePage({ property, loading, onNavigate }: Props) {
           id: "contract",
           label: "Contrato",
           icon: <FileIcon className="size-[22px]" />,
-          onClick: () => onNavigate("mas"),
+          onClick: () => onOpenMore("contract"),
         },
         {
           id: "help",
@@ -296,12 +321,27 @@ export function HomePage({ property, loading, onNavigate }: Props) {
             title="Contrato"
             meta={
               contract
-                ? `Aumenta cada ${contract.increaseEveryMonths} meses`
+                ? nextIncrease
+                  ? estimatedRent != null
+                    ? `Próximo aumento ${longDate(nextIncrease.toISOString())} · ~${money(estimatedRent)}`
+                    : `Próximo aumento ${longDate(nextIncrease.toISOString())}`
+                  : `Aumenta cada ${contract.increaseEveryMonths} meses`
                 : "Todavía sin cargar"
             }
             value={contract ? money(contract.rentAmount) : undefined}
-            onClick={() => onNavigate("mas")}
+            onClick={() => onOpenMore("contract")}
           />
+          {!isOwner && contract && estimatedRent != null && nextIncrease && (
+            <ListRow
+              icon={<ReceiptIcon className="size-[18px]" />}
+              title="Próximo alquiler estimado"
+              meta={`${longDate(nextIncrease.toISOString())}${
+                increasePct != null ? ` · +${increasePct}%` : ""
+              }`}
+              value={money(estimatedRent)}
+              onClick={() => onOpenMore("contract")}
+            />
+          )}
           {isOwner ? (
             <ListRow
               icon={<UsersIcon className="size-[18px]" />}
@@ -311,7 +351,7 @@ export function HomePage({ property, loading, onNavigate }: Props) {
                   ? tenants.map((t) => t.tenant?.name).filter(Boolean).join(", ")
                   : "Sin asignar"
               }
-              onClick={() => onNavigate("mas")}
+              onClick={() => onOpenMore("tenants")}
             />
           ) : (
             <>
@@ -378,18 +418,6 @@ export function HomePage({ property, loading, onNavigate }: Props) {
           )}
         </CardList>
       </section>
-
-      {contract?.filePath && (
-        <a
-          className="flex items-center justify-center gap-2 text-[13px] font-semibold text-brand-600"
-          href={api.fileUrl(contract.filePath)}
-          target="_blank"
-          rel="noreferrer"
-        >
-          <FileIcon className="size-4" />
-          Abrir el contrato en PDF
-        </a>
-      )}
 
       {showContacts && (
         <Screen title="Contactos de emergencia" onClose={() => setShowContacts(false)}>

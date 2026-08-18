@@ -1,9 +1,11 @@
 import cron from "node-cron";
-import { emailUnreadOlderThan } from "../services/email.js";
 import {
   ensureBillingPeriodsForAll,
   remindOwnersToUploadInvoices,
+  remindTenantsToPay,
 } from "../services/billing.js";
+import { remindOwnersOfContractEnding, remindRentIncrease } from "../services/contracts.js";
+import { emailUnreadOlderThan } from "../services/email.js";
 
 export function startJobs() {
   cron.schedule("0 * * * *", async () => {
@@ -15,7 +17,7 @@ export function startJobs() {
     }
   });
 
-  // A medianoche UTC: períodos nuevos + recordatorio al dueño (~10 días antes).
+  // A medianoche UTC: períodos nuevos + recordatorios.
   cron.schedule("5 0 * * *", async () => {
     try {
       const created = await ensureBillingPeriodsForAll();
@@ -23,6 +25,18 @@ export function startJobs() {
       const reminders = await remindOwnersToUploadInvoices(10);
       if (reminders > 0) {
         console.info(`Recordatorios de facturas al dueño: ${reminders}`);
+      }
+      const ending = await remindOwnersOfContractEnding([2, 1]);
+      if (ending > 0) {
+        console.info(`Recordatorios de fin de contrato: ${ending}`);
+      }
+      const increases = await remindRentIncrease([30, 15]);
+      if (increases > 0) {
+        console.info(`Recordatorios de aumento: ${increases}`);
+      }
+      const payReminders = await remindTenantsToPay([3, 7]);
+      if (payReminders > 0) {
+        console.info(`Recordatorios de pago al inquilino: ${payReminders}`);
       }
     } catch (err) {
       console.error("Error en job diario de facturación", err);

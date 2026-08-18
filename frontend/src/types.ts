@@ -39,6 +39,7 @@ export type Property = {
   building?: Building;
   tenancies?: Tenancy[];
   contracts?: Contract[];
+  rentChanges?: RentChange[];
   emergencyContacts?: EmergencyContact[];
   billingPeriods?: BillingPeriod[];
   claims?: Claim[];
@@ -63,7 +64,15 @@ export type Contract = {
   currency: string;
   increaseEveryMonths: number;
   nextIncreaseDate: string | null;
+  increaseMethod?: string;
   increaseNote: string;
+  /** % estimado del próximo aumento (fijo o calculado por IPC en el backend). */
+  estimatedIncreasePct?: number | null;
+  estimatedRent?: number | null;
+  estimateProjected?: boolean;
+  estimateSource?: string | null;
+  /** La fecha de aumento ya llegó o pasó. */
+  increaseDue?: boolean;
   /** JSON string o array parseado de tipos obligatorios, ej. ["Luz","Gas"] */
   requiredInvoiceTypes?: string | string[];
   filePath: string | null;
@@ -71,6 +80,18 @@ export type Contract = {
   startDate: string;
   endDate: string | null;
   active: boolean;
+};
+
+export type RentChange = {
+  id: string;
+  previousAmount: number | null;
+  newAmount: number;
+  increasePct: number | null;
+  kind: "initial" | "applied" | "manual" | string;
+  method: string;
+  note: string;
+  effectiveDate: string;
+  createdAt: string;
 };
 
 export type EmergencyContact = {
@@ -87,6 +108,8 @@ export type BillingPeriod = {
   label: string;
   year: number;
   month: number;
+  /** Alquiler congelado del mes; null en períodos viejos sin snapshot. */
+  rentAmount: number | null;
   status: "collecting" | "ready" | "settled";
   readyAt: string | null;
   invoices?: Invoice[];

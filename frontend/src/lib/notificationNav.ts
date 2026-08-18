@@ -9,7 +9,7 @@ export type NavFocus =
       /** Abre el formulario de comprobante (inquilino). */
       openPayment?: boolean;
     }
-  | { tab: "mas"; sheet: "contract"; propertyId?: string };
+  | { tab: "mas"; sheet: "contract" | "tenants"; propertyId?: string };
 
 type NotificationData = {
   claimId?: string;
@@ -44,6 +44,7 @@ export function focusFromNotification(item: Notification): NavFocus | null {
       };
 
     case "billing_ready":
+    case "payment_due_reminder":
       return {
         tab: "facturas",
         propertyId: data.propertyId,
@@ -61,6 +62,8 @@ export function focusFromNotification(item: Notification): NavFocus | null {
       };
 
     case "rent_increase":
+    case "rent_increase_reminder":
+    case "contract_ending_reminder":
       return {
         tab: "mas",
         sheet: "contract",

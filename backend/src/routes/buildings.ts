@@ -5,6 +5,7 @@ import { requireAuth } from "../middleware/auth.js";
 import { AppError } from "../middleware/error.js";
 import { assertBuildingOwner, assertPropertyOwner } from "../services/access.js";
 import { ensureBillingPeriods } from "../services/billing.js";
+import { enrichContractWithEstimate } from "../services/contracts.js";
 
 export const buildingsRouter = Router();
 buildingsRouter.use(requireAuth);
@@ -154,6 +155,7 @@ propertiesRouter.get("/:id", async (req, res, next) => {
           include: { tenant: { select: { id: true, name: true, email: true, phone: true } } },
         },
         contracts: { where: { active: true }, orderBy: { createdAt: "desc" } },
+        rentChanges: { orderBy: { effectiveDate: "desc" }, take: 24 },
         emergencyContacts: true,
         billingPeriods: {
           orderBy: [{ year: "desc" }, { month: "desc" }],
@@ -176,8 +178,14 @@ propertiesRouter.get("/:id", async (req, res, next) => {
     const isOwner = property.building.ownerId === req.user!.id;
     const myTenancy = property.tenancies.find((t) => t.tenantId === req.user!.id);
     if (!isOwner && !myTenancy) throw new AppError(403, "No autorizado");
+
+    const contracts = await Promise.all(
+      property.contracts.map((c) => enrichContractWithEstimate(c)),
+    );
+
     res.json({
       ...property,
+      contracts,
       role: isOwner ? "owner" : "tenant",
       myShare: myTenancy?.sharePercentage ?? 100,
     });

@@ -2,7 +2,14 @@ import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { api } from "../lib/api";
 import { ContractForm } from "../components/ContractForm";
+import { increaseMethodLabel } from "../lib/contractLabels";
+import {
+  estimateNextRent,
+  resolveNextIncreaseDate,
+} from "../lib/rentIncrease";
 import { ContactActions } from "../components/ContactActions";
+import { ConfirmDialog } from "../components/ConfirmDialog";
+import { toast } from "../components/Toast";
 import { Screen } from "../components/Screen";
 import {
   BuildingIcon,
@@ -20,7 +27,6 @@ import {
   Card,
   CardList,
   EmptyState,
-  ErrorText,
   Field,
   LinkButton,
   ListRow,
@@ -41,7 +47,7 @@ type Props = {
   onSelectProperty: (propertyId: string) => void;
   onUserUpdated: (user: User) => void;
   onLogout: () => void;
-  focusSheet?: "contract" | null;
+  focusSheet?: "contract" | "tenants" | null;
   onFocusHandled?: () => void;
 };
 
@@ -72,8 +78,8 @@ export function MorePage({
   const [editing, setEditing] = useState<
     "contract" | "building" | "unit" | "tenant" | "contact" | "addUnit" | null
   >(null);
-  const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [confirmIncrease, setConfirmIncrease] = useState(false);
 
   useEffect(() => {
     if (!focusSheet) return;
@@ -101,6 +107,7 @@ export function MorePage({
   const building = buildings.find((b) => b.id === property?.buildingId);
   const owner = property?.building?.owner;
   const contract = property?.contracts?.[0];
+  const rentHistory = property?.rentChanges ?? [];
   const contacts = property?.emergencyContacts ?? [];
   const tenants = property?.tenancies ?? [];
 
@@ -149,20 +156,27 @@ export function MorePage({
   }, [property?.id, property?.label, property?.floor]);
 
   const currentRequired = requiredInvoiceTypes(property);
+  const nextIncrease = contract ? resolveNextIncreaseDate(contract) : null;
+  const increasePct = contract?.estimatedIncreasePct ?? null;
+  const estimatedRent =
+    contract?.estimatedRent ?? (contract ? estimateNextRent(contract) : null);
   // Un edificio sin unidades no entra en el selector, así que se lista aparte.
   const buildingsWithoutUnits = buildings.filter(
     (b) => (b.properties ?? []).length === 0,
   );
 
-  async function run(action: () => Promise<unknown>, refreshOptions = false) {
+  async function run(
+    action: () => Promise<unknown>,
+    opts: { success?: string; refreshOptions?: boolean } = {},
+  ) {
     setBusy(true);
-    setError("");
     try {
       await action();
       await reloadProperty();
-      if (refreshOptions) reloadOptions();
+      if (opts.refreshOptions) reloadOptions();
+      if (opts.success) toast.success(opts.success);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Algo salió mal");
+      toast.error(err instanceof Error ? err.message : "Algo salió mal");
     } finally {
       setBusy(false);
     }
@@ -180,7 +194,7 @@ export function MorePage({
         });
         setEditing(null);
       },
-      true,
+      { success: "Edificio guardado", refreshOptions: true },
     );
   }
 
@@ -192,72 +206,83 @@ export function MorePage({
         await api.updateProperty(property.id, { label: unitLabel, floor: unitFloor });
         setEditing(null);
       },
-      true,
+      { success: "Unidad guardada", refreshOptions: true },
     );
   }
 
   async function addUnit(e: FormEvent) {
     e.preventDefault();
     if (!building || !newUnit.trim()) return;
-    await run(async () => {
-      await api.createProperty(building.id, { label: newUnit.trim() });
-      setNewUnit("");
-    }, true);
+    await run(
+      async () => {
+        await api.createProperty(building.id, { label: newUnit.trim() });
+        setNewUnit("");
+      },
+      { success: "Unidad creada", refreshOptions: true },
+    );
   }
 
   // El edificio se crea siempre con su primera unidad: sin unidades no habría
   // nada para elegir en el selector y quedaría invisible.
   async function createBuilding(e: FormEvent) {
     e.preventDefault();
-    await run(async () => {
-      const created = await api.createBuilding({
-        name: newBuildingName,
-        address: newBuildingAddress,
-        city: newBuildingCity,
-      });
-      const unit = await api.createProperty(created.id, {
-        label: newBuildingUnit.trim() || "Unidad 1",
-      });
-      setNewBuildingName("");
-      setNewBuildingAddress("");
-      setNewBuildingCity("");
-      setNewBuildingUnit("");
-      closeSheet();
-      onSelectProperty(unit.id);
-    }, true);
+    await run(
+      async () => {
+        const created = await api.createBuilding({
+          name: newBuildingName,
+          address: newBuildingAddress,
+          city: newBuildingCity,
+        });
+        const unit = await api.createProperty(created.id, {
+          label: newBuildingUnit.trim() || "Unidad 1",
+        });
+        setNewBuildingName("");
+        setNewBuildingAddress("");
+        setNewBuildingCity("");
+        setNewBuildingUnit("");
+        closeSheet();
+        onSelectProperty(unit.id);
+      },
+      { success: "Edificio creado", refreshOptions: true },
+    );
   }
 
   async function addFirstUnit(e: FormEvent) {
     e.preventDefault();
     if (!orphanBuilding) return;
     const target = orphanBuilding;
-    await run(async () => {
-      const unit = await api.createProperty(target.id, {
-        label: orphanUnit.trim() || "Unidad 1",
-      });
-      setOrphanUnit("");
-      setOrphanBuilding(null);
-      onSelectProperty(unit.id);
-    }, true);
+    await run(
+      async () => {
+        const unit = await api.createProperty(target.id, {
+          label: orphanUnit.trim() || "Unidad 1",
+        });
+        setOrphanUnit("");
+        setOrphanBuilding(null);
+        onSelectProperty(unit.id);
+      },
+      { success: "Unidad creada", refreshOptions: true },
+    );
   }
 
   async function addTenant(e: FormEvent) {
     e.preventDefault();
     if (!property) return;
-    await run(async () => {
-      await api.addTenant(property.id, {
-        email: tenantEmail,
-        sharePercentage: tenantShare,
-      });
-      setTenantEmail("");
-      setEditing(null);
-    });
+    await run(
+      async () => {
+        await api.addTenant(property.id, {
+          email: tenantEmail,
+          sharePercentage: tenantShare,
+        });
+        setTenantEmail("");
+        setEditing(null);
+      },
+      { success: "Inquilino agregado" },
+    );
   }
 
   async function saveProfile(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
-    setError("");
     try {
       const updated = await api.updateMe({
         name: profileName.trim(),
@@ -265,8 +290,9 @@ export function MorePage({
       });
       onUserUpdated(updated);
       closeSheet();
+      toast.success("Perfil actualizado");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Algo salió mal");
+      toast.error(err instanceof Error ? err.message : "Algo salió mal");
     } finally {
       setBusy(false);
     }
@@ -275,26 +301,52 @@ export function MorePage({
   async function saveContract(form: FormData) {
     if (!property) return;
     const propertyId = property.id;
-    await run(async () => {
-      await api.createContract(propertyId, form);
-      setEditing(null);
-    });
+    const billSplitMode = String(form.get("billSplitMode") || "");
+    form.delete("billSplitMode");
+    await run(
+      async () => {
+        if (
+          billSplitMode === "tenant_pays_all" ||
+          billSplitMode === "split_by_percentage"
+        ) {
+          await api.updateProperty(propertyId, { billSplitMode });
+        }
+        await api.createContract(propertyId, form);
+        setEditing(null);
+      },
+      { success: "Contrato guardado" },
+    );
+  }
+
+  async function applyIncrease() {
+    if (!property || !contract) return;
+    const amount = contract.estimatedRent;
+    await run(
+      async () => {
+        await api.applyRentIncrease(property.id, amount != null ? { amount } : undefined);
+        setConfirmIncrease(false);
+      },
+      { success: "Aumento aplicado" },
+    );
   }
 
   async function addContact(e: FormEvent) {
     e.preventDefault();
     if (!property) return;
-    await run(async () => {
-      await api.addEmergencyContact(property.id, {
-        category: contactCategory,
-        name: contactName,
-        phone: contactPhone,
-      });
-      setContactCategory("");
-      setContactName("");
-      setContactPhone("");
-      setEditing(null);
-    });
+    await run(
+      async () => {
+        await api.addEmergencyContact(property.id, {
+          category: contactCategory,
+          name: contactName,
+          phone: contactPhone,
+        });
+        setContactCategory("");
+        setContactName("");
+        setContactPhone("");
+        setEditing(null);
+      },
+      { success: "Contacto agregado" },
+    );
   }
 
   return (
@@ -416,8 +468,6 @@ export function MorePage({
           />
         </CardList>
       </section>
-
-      <ErrorText>{error}</ErrorText>
 
       {sheet === "profile" && (
         <Screen title="Tu perfil" onClose={closeSheet}>
@@ -592,9 +642,6 @@ export function MorePage({
                 </div>
               )}
             </Card>
-            <p className="mt-2 px-1 text-[13px] text-ink-400">
-              Para editar una unidad, elegila en el selector y volvé acá.
-            </p>
           </div>
 
           <div className="flex justify-center pt-2">
@@ -657,14 +704,6 @@ export function MorePage({
                     {property.floor || "Sin piso cargado"}
                   </p>
                 </div>
-                <div className="px-3.5 py-3">
-                  <p className="text-[12px] font-medium text-ink-400">Facturas</p>
-                  <p className="mt-0.5 text-[15px] text-ink-900">
-                    {property.billSplitMode === "split_by_percentage"
-                      ? "Se dividen por porcentaje"
-                      : "Las paga el inquilino"}
-                  </p>
-                </div>
               </div>
               <Button
                 className="mt-4"
@@ -676,24 +715,6 @@ export function MorePage({
               </Button>
             </Card>
           )}
-
-          <Card>
-            <p className="mb-3 text-[15px] font-semibold text-ink-900">
-              Cómo se pagan las facturas
-            </p>
-            <select
-              className={inputClass}
-              value={property.billSplitMode}
-              onChange={(e) =>
-                run(() =>
-                  api.updateProperty(property.id, { billSplitMode: e.target.value }),
-                )
-              }
-            >
-              <option value="tenant_pays_all">Las paga todas el inquilino</option>
-              <option value="split_by_percentage">Se dividen por porcentaje</option>
-            </select>
-          </Card>
         </Screen>
       )}
 
@@ -794,6 +815,7 @@ export function MorePage({
                 key={contract?.id ?? "new"}
                 contract={contract}
                 requiredTypes={currentRequired}
+                billSplitMode={property.billSplitMode}
                 busy={busy}
                 onSubmit={saveContract}
               />
@@ -821,17 +843,39 @@ export function MorePage({
                       {longDate(contract.startDate)}
                     </span>
                   </div>
+                  {contract.endDate && (
+                    <div className="flex justify-between gap-3 px-3.5 py-3">
+                      <span className="text-[13px] text-ink-500">Fin</span>
+                      <span className="text-right text-[14px] font-medium text-ink-900">
+                        {longDate(contract.endDate)}
+                      </span>
+                    </div>
+                  )}
                   <div className="flex justify-between gap-3 px-3.5 py-3">
                     <span className="text-[13px] text-ink-500">Aumento</span>
                     <span className="text-right text-[14px] font-medium text-ink-900">
-                      Cada {contract.increaseEveryMonths} meses
+                      Cada {contract.increaseEveryMonths} meses ·{" "}
+                      {increaseMethodLabel(contract.increaseMethod)}
+                      {contract.increaseNote ? ` (${contract.increaseNote})` : ""}
                     </span>
                   </div>
-                  {contract.nextIncreaseDate && (
+                  {nextIncrease && (
                     <div className="flex justify-between gap-3 px-3.5 py-3">
                       <span className="text-[13px] text-ink-500">Próximo aumento</span>
                       <span className="text-right text-[14px] font-medium text-ink-900">
-                        {longDate(contract.nextIncreaseDate)}
+                        {longDate(nextIncrease.toISOString())}
+                      </span>
+                    </div>
+                  )}
+                  {estimatedRent != null && (
+                    <div className="flex justify-between gap-3 px-3.5 py-3">
+                      <span className="text-[13px] text-ink-500">
+                        Alquiler estimado
+                        {increasePct != null ? ` (+${increasePct}%)` : ""}
+                        {contract.estimateProjected ? " · proy." : ""}
+                      </span>
+                      <span className="text-right text-[14px] font-medium text-ink-900">
+                        {money(estimatedRent)}
                       </span>
                     </div>
                   )}
@@ -864,6 +908,70 @@ export function MorePage({
                   </a>
                 )}
               </Card>
+              {isOwner && contract.increaseDue && (
+                <Card>
+                  <p className="text-[15px] font-semibold text-ink-900">
+                    Llegó la fecha de aumento
+                  </p>
+                  <p className="mt-1 text-[13px] text-ink-500">
+                    {estimatedRent != null
+                      ? `Estimado: ${money(estimatedRent)}${
+                          increasePct != null ? ` (+${increasePct}%)` : ""
+                        }. Se actualiza el contrato y se avisa al inquilino.`
+                      : "No hay estimación automática; editá el contrato y cargá el nuevo monto."}
+                  </p>
+                  {estimatedRent != null && (
+                    <Button
+                      className="mt-4"
+                      block
+                      onClick={() => setConfirmIncrease(true)}
+                    >
+                      Aplicar aumento
+                    </Button>
+                  )}
+                </Card>
+              )}
+              {rentHistory.length > 0 && (
+                <div>
+                  <SectionHeading title="Historial de alquiler" />
+                  <Card padded={false}>
+                    <div className="divide-y divide-sand-200/70">
+                      {rentHistory.map((change) => (
+                        <div key={change.id} className="px-4 py-3.5">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="text-[15px] font-medium text-ink-900">
+                                {change.kind === "initial"
+                                  ? "Alquiler inicial"
+                                  : change.kind === "applied"
+                                    ? "Aumento aplicado"
+                                    : "Cambio manual"}
+                              </p>
+                              <p className="mt-0.5 text-[13px] text-ink-500">
+                                {longDate(change.effectiveDate)}
+                                {change.increasePct != null
+                                  ? ` · +${change.increasePct}%`
+                                  : ""}
+                                {change.note ? ` · ${change.note}` : ""}
+                              </p>
+                            </div>
+                            <div className="shrink-0 text-right">
+                              {change.previousAmount != null && (
+                                <p className="text-[12px] text-ink-400 line-through">
+                                  {money(change.previousAmount)}
+                                </p>
+                              )}
+                              <p className="text-[15px] font-semibold text-ink-900">
+                                {money(change.newAmount)}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                </div>
+              )}
               {isOwner && (
                 <Button block onClick={() => setEditing("contract")}>
                   Editar contrato
@@ -877,7 +985,7 @@ export function MorePage({
                 title="Sin contrato cargado"
                 description={
                   isOwner
-                    ? "Cargá el monto, la fecha de inicio y el archivo."
+                    ? "Cargá el monto, las fechas, el aumento y el archivo."
                     : "El dueño todavía no subió el contrato."
                 }
                 action={
@@ -889,6 +997,20 @@ export function MorePage({
                 }
               />
             </Card>
+          )}
+          {confirmIncrease && (
+            <ConfirmDialog
+              title="Aplicar aumento"
+              description={
+                contract?.estimatedRent != null
+                  ? `El alquiler pasa a ${money(contract.estimatedRent)} y se le avisa al inquilino.`
+                  : "Se aplica el aumento estimado y se le avisa al inquilino."
+              }
+              confirmLabel="Aplicar"
+              busy={busy}
+              onConfirm={applyIncrease}
+              onCancel={() => setConfirmIncrease(false)}
+            />
           )}
         </Screen>
       )}
@@ -916,7 +1038,9 @@ export function MorePage({
                       <LinkButton
                         tone="danger"
                         onClick={() =>
-                          run(() => api.removeTenant(property.id, tenancy.id))
+                          run(() => api.removeTenant(property.id, tenancy.id), {
+                            success: "Inquilino quitado",
+                          })
                         }
                       >
                         Quitar
@@ -1007,8 +1131,10 @@ export function MorePage({
                       <LinkButton
                         tone="danger"
                         onClick={() =>
-                          run(() =>
-                            api.deleteEmergencyContact(property.id, contact.id),
+                          run(
+                            () =>
+                              api.deleteEmergencyContact(property.id, contact.id),
+                            { success: "Contacto quitado" },
                           )
                         }
                       >

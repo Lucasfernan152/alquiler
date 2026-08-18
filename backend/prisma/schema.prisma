@@ -11,7 +11,8 @@ datasource db {
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
-  passwordHash String
+  passwordHash String?
+  firebaseUid  String?  @unique
   name         String
   phone        String   @default("")
   createdAt    DateTime @default(now())
@@ -53,6 +54,7 @@ model Property {
   building          Building           @relation(fields: [buildingId], references: [id], onDelete: Cascade)
   tenancies         Tenancy[]
   contracts         Contract[]
+  rentChanges       RentChange[]
   billingPeriods    BillingPeriod[]
   claims            Claim[]
   emergencyContacts EmergencyContact[]
@@ -82,7 +84,11 @@ model Contract {
   currency            String    @default("ARS")
   increaseEveryMonths Int       @default(12)
   nextIncreaseDate    DateTime?
+  /// ipc | icl | fixed | other
+  increaseMethod      String    @default("ipc")
   increaseNote        String    @default("")
+  /// % estimado del próximo aumento (IPC/ICL/fijo). El dueño lo actualiza.
+  estimatedIncreasePct Float?
   /// JSON array de tipos de factura obligatorios, ej. ["Luz","Gas"]
   requiredInvoiceTypes String   @default("[]")
   filePath            String?
@@ -96,12 +102,33 @@ model Contract {
   property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 }
 
+/// Historial de alquileres / aumentos aplicados (queda aunque se renueve el contrato).
+model RentChange {
+  id             String   @id @default(cuid())
+  propertyId     String
+  previousAmount Float?
+  newAmount      Float
+  increasePct    Float?
+  /// initial | applied | manual
+  kind           String   @default("manual")
+  method         String   @default("")
+  note           String   @default("")
+  effectiveDate  DateTime
+  createdAt      DateTime @default(now())
+
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId, effectiveDate])
+}
+
 model BillingPeriod {
   id          String   @id @default(cuid())
   propertyId  String
   label       String
   year        Int
   month       Int
+  // Alquiler congelado del mes: el aumento no debe cambiar períodos ya cerrados.
+  rentAmount  Float?
   status      String   @default("collecting") // collecting | ready | settled
   readyAt     DateTime?
   createdAt   DateTime @default(now())

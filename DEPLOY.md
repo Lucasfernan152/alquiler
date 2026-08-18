@@ -154,6 +154,33 @@ Para prenderlo:
 3. Cargá la service account de Firebase en la env `FIREBASE_SERVICE_ACCOUNT` del
    proyecto API y rebuildeá el APK.
 
+### Google Sign-In (web + nativo)
+
+Usa el mismo proyecto Firebase (`alquiler-c7f4e`) y la misma
+`FIREBASE_SERVICE_ACCOUNT` del API. El front pide un ID token a Firebase Auth;
+el backend lo verifica en `POST /api/auth/google` y emite los JWT propios.
+
+1. En Firebase Console → **Authentication** → **Sign-in method** → habilitar **Google**.
+2. Agregá una app **Web** al proyecto y copiá la config a las envs del front
+   (`VITE_FIREBASE_API_KEY`, `AUTH_DOMAIN`, `PROJECT_ID`, `APP_ID`,
+   `MESSAGING_SENDER_ID`). En Vercel (proyecto web) y en
+   `frontend/.env.production` / local `.env`.
+3. **Android**: en Project settings → app Android `com.alquiler.app`, agregá el
+   SHA-1 del keystore (debug y release). Volvé a bajar `google-services.json`
+   (tiene que traer `oauth_client` no vacío) a `frontend/android/app/`.
+4. **iOS**: creá la app iOS con el bundle id de Capacitor (`com.alquiler.app`) y
+   bajá `GoogleService-Info.plist` a `frontend/ios/App/App/`.
+5. Tras instalar dependencias: `cd frontend && npx cap sync`.
+6. Confirmá que el API tiene `FIREBASE_SERVICE_ACCOUNT` del mismo proyecto;
+   sin eso el endpoint responde 503.
+
+Obtener SHA-1 debug:
+
+```bash
+keytool -list -v -alias androiddebugkey \
+  -keystore ~/.android/debug.keystore -storepass android -keypass android
+```
+
 ---
 
 ## Checklist rápido si algo falla
@@ -165,6 +192,9 @@ Para prenderlo:
 - Front llama a localhost → falta `VITE_API_URL` en el proyecto web (hay que redeployar después de setearla).
 - La app Android no loguea → el WebView usa el origen `https://localhost`; ya está permitido en el backend, revisá que el API esté redeployado.
 - La app Android se cierra al abrirla después del login → `VITE_PUSH_ENABLED=true` sin `google-services.json`.
+- Google Sign-In falla en web → faltan `VITE_FIREBASE_*` o el provider Google no está habilitado.
+- Google Sign-In falla en Android → SHA-1 no cargado / `google-services.json` sin `oauth_client`.
+- `Inicio con Google no está configurado` (503) → falta `FIREBASE_SERVICE_ACCOUNT` en el API.
 
 ---
 

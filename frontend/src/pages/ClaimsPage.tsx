@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { api } from "../lib/api";
 import { Screen } from "../components/Screen";
+import { toast } from "../components/Toast";
 import { PhoneIcon, WrenchIcon } from "../components/icons";
 import {
   Badge,
@@ -9,7 +10,6 @@ import {
   Card,
   CardList,
   EmptyState,
-  ErrorText,
   Field,
   LinkButton,
   ListRow,
@@ -53,7 +53,6 @@ export function ClaimsPage({
   const [description, setDescription] = useState("");
   const [photo, setPhoto] = useState<File | null>(null);
   const [response, setResponse] = useState("");
-  const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -79,14 +78,17 @@ export function ClaimsPage({
   const contacts = current.emergencyContacts ?? [];
   const selected = claims.find((c) => c.id === openId) ?? null;
 
-  async function run(action: () => Promise<unknown>) {
+  async function run(
+    action: () => Promise<unknown>,
+    opts: { success?: string } = {},
+  ) {
     setBusy(true);
-    setError("");
     try {
       await action();
       await reload();
+      if (opts.success) toast.success(opts.success);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Algo salió mal");
+      toast.error(err instanceof Error ? err.message : "Algo salió mal");
     } finally {
       setBusy(false);
     }
@@ -99,51 +101,66 @@ export function ClaimsPage({
     form.append("title", title);
     form.append("description", description);
     if (photo) form.append("photo", photo);
-    await run(async () => {
-      await api.createClaim(form);
-      setTitle("");
-      setDescription("");
-      setPhoto(null);
-      setShowForm(false);
-    });
+    await run(
+      async () => {
+        await api.createClaim(form);
+        setTitle("");
+        setDescription("");
+        setPhoto(null);
+        setShowForm(false);
+      },
+      { success: "Reclamo creado" },
+    );
   }
 
   async function answer(claim: Claim, status: "in_progress" | "resolved") {
-    await run(async () => {
-      await api.updateClaim(claim.id, {
-        status,
-        response:
-          response ||
-          (status === "in_progress"
-            ? "Voy a mandar a alguien a revisarlo."
-            : "Quedó resuelto."),
-        assignedTo: status === "in_progress" ? "Técnico asignado" : undefined,
-      });
-      setResponse("");
-      setOpenId(null);
-    });
+    await run(
+      async () => {
+        await api.updateClaim(claim.id, {
+          status,
+          response:
+            response ||
+            (status === "in_progress"
+              ? "Voy a mandar a alguien a revisarlo."
+              : "Quedó resuelto."),
+          assignedTo: status === "in_progress" ? "Técnico asignado" : undefined,
+        });
+        setResponse("");
+        setOpenId(null);
+      },
+      {
+        success:
+          status === "in_progress" ? "Reclamo en curso" : "Reclamo resuelto",
+      },
+    );
   }
 
   async function tenantResolve(claim: Claim) {
-    await run(async () => {
-      await api.updateClaim(claim.id, {
-        status: "resolved",
-        response: response.trim() || undefined,
-      });
-      setResponse("");
-      setOpenId(null);
-    });
+    await run(
+      async () => {
+        await api.updateClaim(claim.id, {
+          status: "resolved",
+          response: response.trim() || undefined,
+        });
+        setResponse("");
+        setOpenId(null);
+      },
+      { success: "Marcado como resuelto" },
+    );
   }
 
   async function tenantReopen(claim: Claim) {
-    await run(async () => {
-      await api.updateClaim(claim.id, {
-        status: "open",
-        response: response.trim() || undefined,
-      });
-      setResponse("");
-      setOpenId(null);
-    });
+    await run(
+      async () => {
+        await api.updateClaim(claim.id, {
+          status: "open",
+          response: response.trim() || undefined,
+        });
+        setResponse("");
+        setOpenId(null);
+      },
+      { success: "Reclamo reabierto" },
+    );
   }
 
   return (
@@ -191,8 +208,6 @@ export function ClaimsPage({
           </CardList>
         )}
       </section>
-
-      <ErrorText>{error}</ErrorText>
 
       {contacts.length > 0 && !isOwner && (
         <section>

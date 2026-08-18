@@ -4,6 +4,7 @@ import {
   missingRequiredInvoices,
   parseRequiredInvoiceTypes,
   periodTotal,
+  rentForMonth,
   sumInvoiceAmounts,
 } from "../domain/billing.js";
 import { prisma } from "../lib/prisma.js";
@@ -54,6 +55,8 @@ export async function ensureBillingPeriods(propertyId: string) {
   });
   if (!contract) return [];
 
+  await backfillPeriodRentAmounts(propertyId, contract.rentAmount);
+
   const start = new Date(contract.startDate);
   const cursor = {
     year: start.getUTCFullYear(),
@@ -83,11 +86,17 @@ export async function ensureBillingPeriods(propertyId: string) {
   });
   const have = new Set(existing.map((p) => monthKey(p.year, p.month)));
 
+  const changes = await prisma.rentChange.findMany({
+    where: { propertyId },
+    select: { newAmount: true, effectiveDate: true },
+  });
+
   const missing: Array<{
     propertyId: string;
     year: number;
     month: number;
     label: string;
+    rentAmount: number;
   }> = [];
 
   let current = { ...cursor };
@@ -98,6 +107,12 @@ export async function ensureBillingPeriods(propertyId: string) {
         year: current.year,
         month: current.month,
         label: `${MONTH_NAMES[current.month - 1]} ${current.year}`,
+        rentAmount: rentForMonth(
+          changes,
+          current.year,
+          current.month,
+          contract.rentAmount,
+        ),
       });
     }
     current = advanceMonth(current.year, current.month);
@@ -107,6 +122,66 @@ export async function ensureBillingPeriods(propertyId: string) {
 
   await prisma.billingPeriod.createMany({ data: missing });
   return missing;
+}
+
+/** Completa el alquiler de períodos viejos guardados antes del snapshot. */
+async function backfillPeriodRentAmounts(propertyId: string, fallback: number) {
+  const pending = await prisma.billingPeriod.findMany({
+    where: { propertyId, rentAmount: null },
+    select: { id: true, year: true, month: true, readyAt: true },
+  });
+  if (pending.length === 0) return;
+
+  const history = await prisma.rentChange.findMany({
+    where: { propertyId },
+    select: {
+      newAmount: true,
+      effectiveDate: true,
+      createdAt: true,
+      kind: true,
+    },
+  });
+  // El monto inicial vale para todo el contrato aunque se haya registrado tarde.
+  const changes = history.map((change) => ({
+    ...change,
+    createdAt: change.kind === "initial" ? null : change.createdAt,
+  }));
+
+  for (const period of pending) {
+    await prisma.billingPeriod.update({
+      where: { id: period.id },
+      data: {
+        rentAmount: rentForMonth(
+          changes,
+          period.year,
+          period.month,
+          fallback,
+          period.readyAt,
+        ),
+      },
+    });
+  }
+}
+
+/**
+ * Lleva un alquiler nuevo a los períodos que todavía se están armando desde el
+ * mes en que rige. Los ya avisados o liquidados conservan el monto que se cobró.
+ */
+export async function applyRentToOpenPeriods(
+  propertyId: string,
+  rentAmount: number,
+  effectiveDate: Date,
+) {
+  const year = effectiveDate.getUTCFullYear();
+  const month = effectiveDate.getUTCMonth() + 1;
+  await prisma.billingPeriod.updateMany({
+    where: {
+      propertyId,
+      status: "collecting",
+      OR: [{ year: { gt: year } }, { year, month: { gte: month } }],
+    },
+    data: { rentAmount },
+  });
 }
 
 export async function ensureBillingPeriodsForAll() {
@@ -164,7 +239,7 @@ export async function markPeriodReady(periodId: string, ownerId: string) {
     );
   }
 
-  const rentAmount = contract?.rentAmount ?? 0;
+  const rentAmount = period.rentAmount ?? contract?.rentAmount ?? 0;
   const invoicesTotal = sumInvoiceAmounts(period.invoices.map((i) => i.amount));
   const total = periodTotal(
     rentAmount,
@@ -182,7 +257,7 @@ export async function markPeriodReady(periodId: string, ownerId: string) {
 
   const updated = await prisma.billingPeriod.update({
     where: { id: periodId },
-    data: { status: "ready", readyAt: new Date() },
+    data: { status: "ready", readyAt: new Date(), rentAmount },
     include: { invoices: true },
   });
 
@@ -260,9 +335,9 @@ export async function maybeAutoMarkPeriodReady(periodId: string, ownerId: string
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 /** El inquilino debería pagar el 1° del mes siguiente al período. */
-function paymentDueDate(year: number, month: number) {
+export function paymentDueDate(year: number, month: number) {
   // month 1–12; Date.UTC usa 0–11, así `month` cae en el 1° del mes siguiente.
-  return new Date(Date.UTC(year, month, 1));
+  return new Date(Date.UTC(year, month, 1, 12));
 }
 
 function utcDayStamp(d: Date) {
@@ -334,6 +409,74 @@ export async function remindOwnersToUploadInvoices(daysBefore = 10) {
       },
     });
     sent += 1;
+  }
+
+  return sent;
+}
+
+/**
+ * Avisa al inquilino si el período está listo, ya pasó el vencimiento y todavía
+ * no subió comprobante (ni pendiente ni aprobado). Por defecto a los 3 y 7 días.
+ */
+export async function remindTenantsToPay(daysAfterDueList: number[] = [3, 7]) {
+  const periods = await prisma.billingPeriod.findMany({
+    where: { status: "ready" },
+    include: {
+      payments: { select: { tenantId: true, status: true } },
+      property: {
+        include: {
+          building: true,
+          tenancies: { where: { active: true } },
+        },
+      },
+    },
+  });
+
+  const today = utcDayStamp(new Date());
+  let sent = 0;
+
+  for (const period of periods) {
+    const due = paymentDueDate(period.year, period.month);
+    const daysAfter = Math.round((today - utcDayStamp(due)) / MS_PER_DAY);
+    if (!daysAfterDueList.includes(daysAfter)) continue;
+
+    const unit = period.property.label;
+    const building = period.property.building.name;
+
+    for (const tenancy of period.property.tenancies) {
+      const alreadyPaid = period.payments.some(
+        (p) =>
+          p.tenantId === tenancy.tenantId &&
+          (p.status === "pending" || p.status === "approved"),
+      );
+      if (alreadyPaid) continue;
+
+      const reminderKey = `${period.id}:${tenancy.tenantId}:${daysAfter}`;
+      const already = await prisma.notification.findFirst({
+        where: {
+          userId: tenancy.tenantId,
+          type: "payment_due_reminder",
+          dataJson: { contains: `"reminderKey":"${reminderKey}"` },
+        },
+      });
+      if (already) continue;
+
+      await createNotification({
+        userId: tenancy.tenantId,
+        type: "payment_due_reminder",
+        title: `Falta el pago de ${period.label}`,
+        body: `${building} · ${unit}: el vencimiento fue hace ${daysAfter} día${
+          daysAfter === 1 ? "" : "s"
+        }. Subí el comprobante cuando puedas.`,
+        data: {
+          billingPeriodId: period.id,
+          propertyId: period.propertyId,
+          daysAfterDue: daysAfter,
+          reminderKey,
+        },
+      });
+      sent += 1;
+    }
   }
 
   return sent;

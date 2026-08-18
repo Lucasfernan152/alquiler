@@ -33,6 +33,51 @@ export function amountForTenant(
   return Math.round(due * 100) / 100;
 }
 
+export type RentPoint = {
+  newAmount: number;
+  effectiveDate: Date;
+  createdAt?: Date | null;
+};
+
+function monthIndex(year: number, month: number) {
+  return year * 12 + (month - 1);
+}
+
+/**
+ * Alquiler vigente en un mes según el historial: el último cambio cuyo mes de
+ * vigencia no sea posterior al del período. Si no hay historial, el del contrato.
+ *
+ * `knownAt` deja afuera los cambios cargados después de esa fecha, así un
+ * aumento con vigencia retroactiva no reescribe un mes que ya se cobró.
+ */
+export function rentForMonth(
+  changes: RentPoint[],
+  year: number,
+  month: number,
+  fallback: number,
+  knownAt?: Date | null,
+): number {
+  const target = monthIndex(year, month);
+  const cutoff = knownAt ? new Date(knownAt).getTime() : null;
+  let best: RentPoint | null = null;
+  for (const change of changes) {
+    if (
+      cutoff != null &&
+      change.createdAt &&
+      new Date(change.createdAt).getTime() > cutoff
+    ) {
+      continue;
+    }
+    const date = new Date(change.effectiveDate);
+    const idx = monthIndex(date.getUTCFullYear(), date.getUTCMonth() + 1);
+    if (idx > target) continue;
+    if (!best || new Date(best.effectiveDate).getTime() <= date.getTime()) {
+      best = change;
+    }
+  }
+  return best?.newAmount ?? fallback;
+}
+
 export function parseRequiredInvoiceTypes(raw: string | null | undefined): string[] {
   if (!raw) return [];
   try {

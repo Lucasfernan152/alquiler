@@ -59,6 +59,23 @@
   textarea {
     @apply outline-none;
   }
+
+  /**
+   * En Android 15+ la app dibuja debajo de las barras del sistema, así que el
+   * hueco de los botones (atrás/inicio/apps) o de la barra de gestos queda
+   * pintado por la web: lo tapamos con el color de marca para que combine con
+   * la barra de notificaciones.
+   */
+  body::after {
+    content: "";
+    position: fixed;
+    inset-inline: 0;
+    bottom: 0;
+    height: env(safe-area-inset-bottom);
+    background-color: var(--color-brand-700);
+    pointer-events: none;
+    z-index: 60;
+  }
 }
 
 @utility amount {
@@ -71,6 +88,22 @@
   padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
 }
 
+/** Deja libre el alto de la nav fija (incluida la barra de gestos del celu). */
+@utility pb-nav {
+  padding-bottom: calc(6rem + env(safe-area-inset-bottom));
+}
+
 @utility safe-top {
   padding-top: calc(0.75rem + env(safe-area-inset-top));
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }

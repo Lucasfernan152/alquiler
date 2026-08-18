@@ -1,4 +1,4 @@
-# Alquiler
+# Rently
 
 Gestión de propiedades alquiladas para dueños e inquilinos.
 

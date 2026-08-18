@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "514552835883",
+    "project_id": "alquiler-c7f4e",
+    "storage_bucket": "alquiler-c7f4e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:514552835883:android:5012aab8b940c49a505f6e",
+        "android_client_info": {
+          "package_name": "com.alquiler.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "514552835883-q47mv2j978a8n2lrech79m1b8c693ieb.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.alquiler.app",
+            "certificate_hash": "c988f4016dbf92ed2d185ff531c4278e33fae9f1"
+          }
+        },
+        {
+          "client_id": "514552835883-gkkpca58u6ikdtqd50meg5fn0svp146o.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB2azLsduiJbRrdbBJA_fRL1pyf3-re4SQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "514552835883-gkkpca58u6ikdtqd50meg5fn0svp146o.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

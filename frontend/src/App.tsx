@@ -9,6 +9,7 @@ import { BillingPage } from "./pages/BillingPage";
 import { ClaimsPage } from "./pages/ClaimsPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
 import { MorePage } from "./pages/MorePage";
+import { ToastProvider, toast } from "./components/Toast";
 import { ErrorText, LoadingBlock, Spinner } from "./components/ui";
 import { api, clearTokens, getAccessToken, hasStoredSession } from "./lib/api";
 import { closeTopScreen } from "./lib/backStack";
@@ -43,10 +44,6 @@ export default function App() {
     );
   }
 
-  if (!user) {
-    return <AuthPage onAuth={setUser} />;
-  }
-
   function logout() {
     clearTokens();
     setUser(null);
@@ -54,7 +51,15 @@ export default function App() {
 
   // La key remonta el shell en cada cambio de cuenta: sin ella, la sesión
   // siguiente hereda las propiedades y avisos de la anterior.
-  return <AppShell key={user.id} user={user} onUserUpdated={setUser} onLogout={logout} />;
+  return (
+    <ToastProvider>
+      {!user ? (
+        <AuthPage onAuth={setUser} />
+      ) : (
+        <AppShell key={user.id} user={user} onUserUpdated={setUser} onLogout={logout} />
+      )}
+    </ToastProvider>
+  );
 }
 
 function AppShell({
@@ -84,6 +89,10 @@ function AppShell({
   useEffect(() => {
     void setupPushNotifications();
   }, []);
+
+  useEffect(() => {
+    if (optionsError) toast.error(optionsError);
+  }, [optionsError]);
 
   const loadNotifications = useCallback(() => {
     if (!getAccessToken()) return;
@@ -153,6 +162,11 @@ function AppShell({
     goToTab(tabFromFocus(focus));
   }
 
+  function openMoreSheet(sheet: "contract" | "tenants") {
+    setNavFocus({ tab: "mas", sheet });
+    goToTab("mas");
+  }
+
   async function reloadAll() {
     await reload();
     loadNotifications();
@@ -171,7 +185,7 @@ function AppShell({
   const backgroundBusy = loading && !waitingForContent;
 
   return (
-    <div className="min-h-dvh bg-sand-100 pb-24">
+    <div className="pb-nav min-h-dvh bg-sand-100">
       <AppHeader
         unread={unread}
         onOpenNotifications={() => goToTab("avisos")}
@@ -198,6 +212,7 @@ function AppShell({
                     property={property}
                     loading={loading}
                     onNavigate={goToTab}
+                    onOpenMore={openMoreSheet}
                   />
                 )}
                 {tab === "facturas" && (
@@ -260,9 +275,8 @@ function AppShell({
 
       {backgroundBusy && (
         <div className="pointer-events-none fixed inset-x-0 bottom-24 z-40 flex justify-center">
-          <span className="flex items-center gap-2 rounded-full bg-ink-900/85 px-3.5 py-2 text-[13px] font-medium text-white shadow-float">
-            <Spinner className="size-3.5 border-white/40 border-t-white" />
-            Actualizando…
+          <span className="flex size-9 items-center justify-center rounded-full bg-white shadow-float">
+            <Spinner className="size-4" />
           </span>
         </div>
       )}

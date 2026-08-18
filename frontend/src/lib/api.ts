@@ -129,6 +129,13 @@ export const api = {
       false,
     );
   },
+  loginWithGoogle(body: { idToken: string }) {
+    return request<AuthResult>(
+      "/api/auth/google",
+      { method: "POST", body: JSON.stringify(body) },
+      false,
+    );
+  },
   /**
    * Restaura la sesión al abrir la app. Si el access ya venció (15m), usa el
    * refresh. Solo limpia tokens si el refresh también falló.
@@ -232,6 +239,12 @@ export const api = {
     return request<Contract>(`/api/contracts/${propertyId}`, {
       method: "POST",
       body: form,
+    });
+  },
+  applyRentIncrease(propertyId: string, body?: { amount?: number }) {
+    return request<Contract>(`/api/contracts/${propertyId}/apply-increase`, {
+      method: "POST",
+      body: JSON.stringify(body ?? {}),
     });
   },
   getPeriod(id: string) {

@@ -14,6 +14,7 @@
     "apk": "npm run build && npx cap sync android && cd android && ./gradlew -I init.databricks.gradle assembleDebug"
   },
   "dependencies": {
+    "@capacitor-firebase/authentication": "^8.3.0",
     "@capacitor/android": "^8.5.0",
     "@capacitor/app": "^8.1.1",
     "@capacitor/cli": "^8.5.0",
@@ -21,6 +22,7 @@
     "@capacitor/ios": "^8.5.0",
     "@capacitor/push-notifications": "^8.1.2",
     "@tailwindcss/vite": "^4.3.3",
+    "firebase": "^12.17.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "tailwindcss": "^4.3.3"

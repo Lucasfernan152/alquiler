@@ -10,5 +10,5 @@ if (!env.isServerless) {
 }
 
 app.listen(env.port, () => {
-  console.info(`API Alquiler en http://localhost:${env.port}`);
+  console.info(`API Rently en http://localhost:${env.port}`);
 });

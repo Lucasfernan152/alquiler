@@ -1,7 +1,12 @@
 import { Router } from "express";
 import { env } from "../lib/env.js";
 import { AppError } from "../middleware/error.js";
-import { ensureBillingPeriodsForAll, remindOwnersToUploadInvoices } from "../services/billing.js";
+import {
+  ensureBillingPeriodsForAll,
+  remindOwnersToUploadInvoices,
+  remindTenantsToPay,
+} from "../services/billing.js";
+import { remindOwnersOfContractEnding, remindRentIncrease } from "../services/contracts.js";
 import { emailUnreadOlderThan } from "../services/email.js";
 
 export const jobsRouter = Router();
@@ -57,12 +62,27 @@ jobsRouter.get("/ensure-periods", requireCron, async (_req, res, next) => {
   }
 });
 
+async function runDaily() {
+  const emailed = await emailUnreadOlderThan(24);
+  const created = await ensureBillingPeriodsForAll();
+  const ownerReminders = await remindOwnersToUploadInvoices(10);
+  const contractEnding = await remindOwnersOfContractEnding([2, 1]);
+  const rentIncrease = await remindRentIncrease([30, 15]);
+  const paymentReminders = await remindTenantsToPay([3, 7]);
+  return {
+    ok: true as const,
+    emailed,
+    created,
+    ownerReminders,
+    contractEnding,
+    rentIncrease,
+    paymentReminders,
+  };
+}
+
 jobsRouter.get("/daily", requireCron, async (_req, res, next) => {
   try {
-    const emailed = await emailUnreadOlderThan(24);
-    const created = await ensureBillingPeriodsForAll();
-    const ownerReminders = await remindOwnersToUploadInvoices(10);
-    res.json({ ok: true, emailed, created, ownerReminders });
+    res.json(await runDaily());
   } catch (err) {
     next(err);
   }
@@ -70,10 +90,7 @@ jobsRouter.get("/daily", requireCron, async (_req, res, next) => {
 
 jobsRouter.post("/daily", requireCron, async (_req, res, next) => {
   try {
-    const emailed = await emailUnreadOlderThan(24);
-    const created = await ensureBillingPeriodsForAll();
-    const ownerReminders = await remindOwnersToUploadInvoices(10);
-    res.json({ ok: true, emailed, created, ownerReminders });
+    res.json(await runDaily());
   } catch (err) {
     next(err);
   }

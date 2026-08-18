@@ -13,6 +13,7 @@ import {
   viewerShare,
 } from "../lib/billing";
 import { Screen } from "../components/Screen";
+import { toast } from "../components/Toast";
 import { CheckIcon, ChevronDownIcon, DownloadIcon, ReceiptIcon } from "../components/icons";
 import {
   Badge,
@@ -20,7 +21,6 @@ import {
   Card,
   CardList,
   EmptyState,
-  ErrorText,
   Field,
   ListRow,
   SectionHeading,
@@ -62,7 +62,6 @@ export function BillingPage({
   const periods = property?.billingPeriods ?? [];
   const [periodId, setPeriodId] = useState("");
   const [sheet, setSheet] = useState<Sheet>(null);
-  const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
   const [invoiceType, setInvoiceType] = useState("Expensas");
@@ -108,7 +107,7 @@ export function BillingPage({
   const period = periods.find((p) => p.id === periodId);
   const invoices = period?.invoices ?? [];
   const payments = period?.payments ?? [];
-  const rent = rentOf(current);
+  const rent = rentOf(current, period?.id);
   const share = viewerShare(current);
   const due = amountDue(current, period?.id);
   const parties = shareParties(current);
@@ -154,14 +153,17 @@ export function BillingPage({
   const required = requiredInvoiceTypes(current);
   const missing = missingRequiredInvoiceTypes(current, period?.id);
 
-  async function run(action: () => Promise<unknown>) {
+  async function run(
+    action: () => Promise<unknown>,
+    opts: { success?: string } = {},
+  ) {
     setBusy(true);
-    setError("");
     try {
       await action();
       await reload();
+      if (opts.success) toast.success(opts.success);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Algo salió mal");
+      toast.error(err instanceof Error ? err.message : "Algo salió mal");
     } finally {
       setBusy(false);
     }
@@ -174,12 +176,15 @@ export function BillingPage({
     form.append("type", invoiceType);
     form.append("amount", invoiceAmount);
     if (invoiceFile) form.append("file", invoiceFile);
-    await run(async () => {
-      await api.addInvoice(period.id, form);
-      setInvoiceAmount("");
-      setInvoiceFile(null);
-      setSheet(null);
-    });
+    await run(
+      async () => {
+        await api.addInvoice(period.id, form);
+        setInvoiceAmount("");
+        setInvoiceFile(null);
+        setSheet(null);
+      },
+      { success: "Factura cargada" },
+    );
   }
 
   async function submitPayment(e: FormEvent) {
@@ -188,12 +193,15 @@ export function BillingPage({
     const form = new FormData();
     form.append("amount", payAmount || String(due));
     if (payFile) form.append("proof", payFile);
-    await run(async () => {
-      await api.submitPayment(period.id, form);
-      setPayAmount("");
-      setPayFile(null);
-      setSheet(null);
-    });
+    await run(
+      async () => {
+        await api.submitPayment(period.id, form);
+        setPayAmount("");
+        setPayFile(null);
+        setSheet(null);
+      },
+      { success: "Comprobante enviado" },
+    );
   }
 
   const canPay =
@@ -442,8 +450,6 @@ export function BillingPage({
         )}
       </section>
 
-      <ErrorText>{error}</ErrorText>
-
       {period && (
         <section>
           <SectionHeading title="Pagos" />
@@ -477,10 +483,10 @@ export function BillingPage({
                           target="_blank"
                           rel="noreferrer"
                           download={payment.proofName ?? true}
-                          className="flex size-9 items-center justify-center rounded-full bg-sand-100 text-ink-700 transition active:bg-sand-200"
+                          className="flex size-7 items-center justify-center rounded-full bg-sand-100 text-ink-700 transition active:bg-sand-200"
                           aria-label="Descargar comprobante"
                         >
-                          <DownloadIcon className="size-[18px]" />
+                          <DownloadIcon className="size-3.5" />
                         </a>
                       )}
                     </div>
@@ -496,7 +502,11 @@ export function BillingPage({
                         size="sm"
                         loading={busy}
                         onClick={() =>
-                          run(() => api.reviewPayment(payment.id, { status: "approved" }))
+                          run(
+                            () =>
+                              api.reviewPayment(payment.id, { status: "approved" }),
+                            { success: "Pago aprobado" },
+                          )
                         }
                       >
                         Aprobar
@@ -506,11 +516,13 @@ export function BillingPage({
                         variant="secondary"
                         loading={busy}
                         onClick={() =>
-                          run(() =>
-                            api.reviewPayment(payment.id, {
-                              status: "rejected",
-                              reviewNote: "Revisá el comprobante y volvé a subirlo",
-                            }),
+                          run(
+                            () =>
+                              api.reviewPayment(payment.id, {
+                                status: "rejected",
+                                reviewNote: "Revisá el comprobante y volvé a subirlo",
+                              }),
+                            { success: "Pago rechazado" },
                           )
                         }
                       >

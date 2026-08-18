@@ -2,7 +2,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
 
 const config: CapacitorConfig = {
   appId: "com.alquiler.app",
-  appName: "Alquiler",
+  appName: "Rently",
   webDir: "dist",
   server: {
     androidScheme: "https",
@@ -10,6 +10,14 @@ const config: CapacitorConfig = {
   plugins: {
     PushNotifications: {
       presentationOptions: ["badge", "sound", "alert"],
+    },
+    FirebaseAuthentication: {
+      skipNativeAuth: false,
+      providers: ["google.com"],
+    },
+    // Barras de estado y de navegación con fondo de marca: iconos claros.
+    SystemBars: {
+      style: "DARK",
     },
   },
 };

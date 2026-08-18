@@ -1,17 +1,31 @@
 import type { Property, Tenancy } from "../types";
 
-export function rentOf(property: Property | null | undefined) {
-  return property?.contracts?.[0]?.rentAmount ?? 0;
+function periodOf(property: Property | null | undefined, periodId?: string) {
+  return periodId
+    ? property?.billingPeriods?.find((p) => p.id === periodId)
+    : property?.billingPeriods?.[0];
+}
+
+/**
+ * Alquiler del período: el que se congeló ese mes, para que un aumento no
+ * cambie lo que ya se cobró. Si el período no lo tiene, el del contrato.
+ */
+export function rentOf(property: Property | null | undefined, periodId?: string) {
+  return (
+    periodOf(property, periodId)?.rentAmount ??
+    property?.contracts?.[0]?.rentAmount ??
+    0
+  );
 }
 
 export function invoicesSum(
   property: Property | null | undefined,
   periodId?: string,
 ) {
-  const period = periodId
-    ? property?.billingPeriods?.find((p) => p.id === periodId)
-    : property?.billingPeriods?.[0];
-  return (period?.invoices ?? []).reduce((sum, i) => sum + i.amount, 0);
+  return (periodOf(property, periodId)?.invoices ?? []).reduce(
+    (sum, i) => sum + i.amount,
+    0,
+  );
 }
 
 /** Alquiler + facturas del período, sin aplicar porcentajes. */
@@ -19,7 +33,7 @@ export function periodTotal(
   property: Property | null | undefined,
   periodId?: string,
 ) {
-  return rentOf(property) + invoicesSum(property, periodId);
+  return rentOf(property, periodId) + invoicesSum(property, periodId);
 }
 
 export function splitsByPercentage(property: Property | null | undefined) {
@@ -71,7 +85,9 @@ export function amountDueForShare(
   share: number,
   periodId?: string,
 ) {
-  return rentOf(property) + shareOf(invoicesSum(property, periodId), share);
+  return (
+    rentOf(property, periodId) + shareOf(invoicesSum(property, periodId), share)
+  );
 }
 
 /**
