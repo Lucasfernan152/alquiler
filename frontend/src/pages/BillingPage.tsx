@@ -13,7 +13,7 @@ import {
   viewerShare,
 } from "../lib/billing";
 import { Screen } from "../components/Screen";
-import { CheckIcon, ChevronDownIcon, FileIcon, ReceiptIcon } from "../components/icons";
+import { CheckIcon, ChevronDownIcon, DownloadIcon, ReceiptIcon } from "../components/icons";
 import {
   Badge,
   Button,
@@ -299,7 +299,7 @@ export function BillingPage({
                     (i) => i.type.trim().toLowerCase() === type.trim().toLowerCase(),
                   );
                   if (uploaded) {
-                    const row = invoiceRow(uploaded.amount, "Del preset · cargada");
+                    const row = invoiceRow(uploaded.amount);
                     return (
                       <ListRow
                         key={type}
@@ -312,10 +312,11 @@ export function BillingPage({
                               href={api.fileUrl(uploaded.filePath)}
                               target="_blank"
                               rel="noreferrer"
-                              className="text-ink-400"
-                              aria-label={`Ver ${uploaded.type}`}
+                              download={uploaded.fileName ?? true}
+                              className="flex size-9 items-center justify-center rounded-full bg-sand-100 text-ink-700 transition active:bg-sand-200"
+                              aria-label={`Descargar ${uploaded.type}`}
                             >
-                              <FileIcon className="size-[18px]" />
+                              <DownloadIcon className="size-[18px]" />
                             </a>
                           ) : (
                             <span className="flex size-7 items-center justify-center rounded-full bg-sage-50 text-sage-600">
@@ -365,10 +366,11 @@ export function BillingPage({
                             href={api.fileUrl(invoice.filePath)}
                             target="_blank"
                             rel="noreferrer"
-                            className="text-ink-400"
-                            aria-label={`Ver ${invoice.type}`}
+                            download={invoice.fileName ?? true}
+                            className="flex size-9 items-center justify-center rounded-full bg-sand-100 text-ink-700 transition active:bg-sand-200"
+                            aria-label={`Descargar ${invoice.type}`}
                           >
-                            <FileIcon className="size-[18px]" />
+                            <DownloadIcon className="size-[18px]" />
                           </a>
                         ) : undefined
                       }
@@ -474,10 +476,11 @@ export function BillingPage({
                           href={api.fileUrl(payment.proofPath)}
                           target="_blank"
                           rel="noreferrer"
-                          className="text-ink-400"
-                          aria-label="Ver comprobante"
+                          download={payment.proofName ?? true}
+                          className="flex size-9 items-center justify-center rounded-full bg-sand-100 text-ink-700 transition active:bg-sand-200"
+                          aria-label="Descargar comprobante"
                         >
-                          <FileIcon className="size-[18px]" />
+                          <DownloadIcon className="size-[18px]" />
                         </a>
                       )}
                     </div>

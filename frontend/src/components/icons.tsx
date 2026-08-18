@@ -136,6 +136,14 @@ export const ChatIcon = (p: IconProps) => (
   </Svg>
 );
 
+export const DownloadIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M12 4v11" />
+    <path d="m7.5 11.5 4.5 4.5 4.5-4.5" />
+    <path d="M5 19.5h14" />
+  </Svg>
+);
+
 export const FileIcon = (p: IconProps) => (
   <Svg {...p}>
     <path d="M13.5 3.5H7a1.5 1.5 0 0 0-1.5 1.5v14A1.5 1.5 0 0 0 7 20.5h10a1.5 1.5 0 0 0 1.5-1.5V8.5Z" />
@@ -189,6 +197,17 @@ export const CalendarIcon = (p: IconProps) => (
     <rect x="3.5" y="5.5" width="17" height="15" rx="2" />
     <path d="M3.5 10h17M8 3.5v4M16 3.5v4" />
   </Svg>
+);
+
+export const BrandMarkIcon = (p: IconProps) => (
+  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" {...p}>
+    <path
+      fill="currentColor"
+      fillRule="evenodd"
+      d="M4 3h8a1 1 0 0 1 1 1v5h7a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Zm1.5 3.2h2.2v2.2H5.5V6.2Zm3.8 0h2.2v2.2H9.3V6.2Zm-3.8 4h2.2v2.2H5.5v-2.2Zm3.8 0h2.2v2.2H9.3v-2.2Zm5 1.6h2.1V14h-2.1v-2.2Zm3.6 0h2.1V14h-2.1v-2.2Zm-3.6 4h2.1v2.2h-2.1V16Zm3.6 0h2.1v2.2h-2.1V16Z"
+    />
+    <path fill="#fbbf24" d="M7 15.6a1.5 1.5 0 0 1 3 0V21H7v-5.4Z" />
+  </svg>
 );
 
 export const SparkIcon = (p: IconProps) => (
