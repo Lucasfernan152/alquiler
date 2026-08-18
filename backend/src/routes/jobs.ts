@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { env } from "../lib/env.js";
 import { AppError } from "../middleware/error.js";
-import { ensureBillingPeriodsForAll } from "../services/billing.js";
+import { ensureBillingPeriodsForAll, remindOwnersToUploadInvoices } from "../services/billing.js";
 import { emailUnreadOlderThan } from "../services/email.js";
 
 export const jobsRouter = Router();
@@ -61,7 +61,8 @@ jobsRouter.get("/daily", requireCron, async (_req, res, next) => {
   try {
     const emailed = await emailUnreadOlderThan(24);
     const created = await ensureBillingPeriodsForAll();
-    res.json({ ok: true, emailed, created });
+    const ownerReminders = await remindOwnersToUploadInvoices(10);
+    res.json({ ok: true, emailed, created, ownerReminders });
   } catch (err) {
     next(err);
   }
@@ -71,7 +72,8 @@ jobsRouter.post("/daily", requireCron, async (_req, res, next) => {
   try {
     const emailed = await emailUnreadOlderThan(24);
     const created = await ensureBillingPeriodsForAll();
-    res.json({ ok: true, emailed, created });
+    const ownerReminders = await remindOwnersToUploadInvoices(10);
+    res.json({ ok: true, emailed, created, ownerReminders });
   } catch (err) {
     next(err);
   }

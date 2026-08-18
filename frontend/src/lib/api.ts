@@ -237,9 +237,6 @@ export const api = {
       body: form,
     });
   },
-  markPeriodReady(periodId: string) {
-    return request(`/api/billing/periods/${periodId}/ready`, { method: "POST" });
-  },
   submitPayment(periodId: string, form: FormData) {
     return request(`/api/payments/periods/${periodId}`, {
       method: "POST",

@@ -6,7 +6,7 @@ import { persistUpload, upload } from "../lib/upload.js";
 import { requireAuth } from "../middleware/auth.js";
 import { AppError } from "../middleware/error.js";
 import { assertPropertyOwner, assertPropertyTenantOrOwner } from "../services/access.js";
-import { markPeriodReady } from "../services/billing.js";
+import { markPeriodReady, maybeAutoMarkPeriodReady } from "../services/billing.js";
 
 export const billingRouter = Router();
 billingRouter.use(requireAuth);
@@ -69,7 +69,12 @@ billingRouter.post(
           fileName: stored?.fileName,
         },
       });
-      res.status(201).json(invoice);
+      // Si era la última del preset, avisamos solos al inquilino.
+      const auto = await maybeAutoMarkPeriodReady(period.id, req.user!.id);
+      res.status(201).json({
+        ...invoice,
+        periodReady: Boolean(auto),
+      });
     } catch (err) {
       next(err instanceof z.ZodError ? new AppError(400, "Datos inválidos") : err);
     }

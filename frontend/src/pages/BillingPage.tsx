@@ -153,11 +153,6 @@ export function BillingPage({
 
   const required = requiredInvoiceTypes(current);
   const missing = missingRequiredInvoiceTypes(current, period?.id);
-  const canNotify =
-    isOwner &&
-    period?.status === "collecting" &&
-    missing.length === 0 &&
-    (required.length > 0 || invoices.length > 0);
 
   async function run(action: () => Promise<unknown>) {
     setBusy(true);
@@ -405,30 +400,25 @@ export function BillingPage({
               <div className="space-y-2 border-t border-sand-200/70 bg-sand-50/60 p-3">
                 {isOwner && missing.length > 0 && (
                   <p className="text-[13px] text-ink-500">
-                    Faltan: {missing.join(", ")}. Cargalas para poder avisar.
+                    Faltan: {missing.join(", ")}. Cuando subas la última, avisamos
+                    solos al inquilino.
+                  </p>
+                )}
+                {isOwner && missing.length === 0 && required.length === 0 && (
+                  <p className="text-[13px] text-ink-500">
+                    Al guardar una factura avisamos solos al inquilino.
                   </p>
                 )}
                 {isOwner && (
-                  <div className="flex gap-2">
-                    <Button
-                      variant="secondary"
-                      block
-                      onClick={() => {
-                        if (missing[0]) setInvoiceType(missing[0]);
-                        setSheet("invoice");
-                      }}
-                    >
-                      Agregar factura
-                    </Button>
-                    <Button
-                      block
-                      loading={busy}
-                      disabled={!canNotify}
-                      onClick={() => run(() => api.markPeriodReady(period.id))}
-                    >
-                      Avisar al inquilino
-                    </Button>
-                  </div>
+                  <Button
+                    block
+                    onClick={() => {
+                      if (missing[0]) setInvoiceType(missing[0]);
+                      setSheet("invoice");
+                    }}
+                  >
+                    Agregar factura
+                  </Button>
                 )}
                 {canPay && (
                   <Button block onClick={() => setSheet("payment")}>

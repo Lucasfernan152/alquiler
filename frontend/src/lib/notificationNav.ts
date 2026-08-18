@@ -51,6 +51,7 @@ export function focusFromNotification(item: Notification): NavFocus | null {
         openPayment: true,
       };
 
+    case "upload_invoices_reminder":
     case "payment_submitted":
     case "payment_reviewed":
       return {

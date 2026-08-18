@@ -224,6 +224,121 @@ export async function markPeriodReady(periodId: string, ownerId: string) {
   return { period: updated, total };
 }
 
+/**
+ * Si el período ya tiene todas las facturas del preset (o al menos una si no
+ * hay preset), marca listo y avisa a los inquilinos. No hace nada si falta algo.
+ */
+export async function maybeAutoMarkPeriodReady(periodId: string, ownerId: string) {
+  const period = await prisma.billingPeriod.findUnique({
+    where: { id: periodId },
+    include: {
+      invoices: true,
+      property: {
+        include: {
+          building: true,
+          contracts: { where: { active: true }, take: 1 },
+        },
+      },
+    },
+  });
+  if (!period) return null;
+  if (period.status !== "collecting") return null;
+  if (period.property.building.ownerId !== ownerId) return null;
+
+  const required = parseRequiredInvoiceTypes(
+    period.property.contracts[0]?.requiredInvoiceTypes,
+  );
+  const missing = missingRequiredInvoices(
+    required,
+    period.invoices.map((i) => i.type),
+  );
+  if (missing.length > 0) return null;
+  if (required.length === 0 && period.invoices.length === 0) return null;
+
+  return markPeriodReady(periodId, ownerId);
+}
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+/** El inquilino debería pagar el 1° del mes siguiente al período. */
+function paymentDueDate(year: number, month: number) {
+  // month 1–12; Date.UTC usa 0–11, así `month` cae en el 1° del mes siguiente.
+  return new Date(Date.UTC(year, month, 1));
+}
+
+function utcDayStamp(d: Date) {
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+}
+
+/**
+ * Avisa al dueño ~10 días antes de que el inquilino deba pagar, si todavía
+ * faltan facturas. Una sola vez por período.
+ */
+export async function remindOwnersToUploadInvoices(daysBefore = 10) {
+  const periods = await prisma.billingPeriod.findMany({
+    where: { status: "collecting" },
+    include: {
+      invoices: { select: { type: true } },
+      property: {
+        include: {
+          building: true,
+          contracts: { where: { active: true }, take: 1 },
+        },
+      },
+    },
+  });
+
+  const today = utcDayStamp(new Date());
+  let sent = 0;
+
+  for (const period of periods) {
+    const due = paymentDueDate(period.year, period.month);
+    const daysUntil = Math.round((utcDayStamp(due) - today) / MS_PER_DAY);
+    if (daysUntil !== daysBefore) continue;
+
+    const required = parseRequiredInvoiceTypes(
+      period.property.contracts[0]?.requiredInvoiceTypes,
+    );
+    const missing = missingRequiredInvoices(
+      required,
+      period.invoices.map((i) => i.type),
+    );
+    const needsUpload =
+      missing.length > 0 || (required.length === 0 && period.invoices.length === 0);
+    if (!needsUpload) continue;
+
+    const ownerId = period.property.building.ownerId;
+    const already = await prisma.notification.findFirst({
+      where: {
+        userId: ownerId,
+        type: "upload_invoices_reminder",
+        dataJson: { contains: period.id },
+      },
+    });
+    if (already) continue;
+
+    const unit = period.property.label;
+    const building = period.property.building.name;
+    const missingText =
+      missing.length > 0
+        ? `Faltan: ${missing.join(", ")}.`
+        : "Todavía no cargaste ninguna factura.";
+
+    await createNotification({
+      userId: ownerId,
+      type: "upload_invoices_reminder",
+      title: `Subí las facturas de ${period.label}`,
+      body: `${building} · ${unit}: el inquilino debería pagar en ~${daysBefore} días. ${missingText}`,
+      data: {
+        billingPeriodId: period.id,
+        propertyId: period.propertyId,
+      },
+    });
+    sent += 1;
+  }
+
+  return sent;
+}
+
 export async function ensureCanManagePeriod(periodId: string, userId: string) {
   const period = await prisma.billingPeriod.findUnique({
     where: { id: periodId },
