@@ -4,35 +4,38 @@
   --font-sans:
     "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 
-  --color-sand-50: #fbf8f4;
-  --color-sand-100: #f4eee6;
-  --color-sand-200: #e9e0d3;
-  --color-sand-300: #d9ccba;
+  /* Lino: superficies cálidas pero sin amarillear. */
+  --color-sand-50: #fbfaf7;
+  --color-sand-100: #f5f3ee;
+  --color-sand-200: #e7e4db;
+  --color-sand-300: #d3cfc3;
 
-  --color-ink-900: #241c16;
-  --color-ink-700: #4a3f36;
-  --color-ink-500: #7b6c5f;
-  --color-ink-400: #9c8d80;
+  --color-ink-900: #1b2426;
+  --color-ink-700: #3b4a4d;
+  --color-ink-500: #6b7a7d;
+  --color-ink-400: #94a1a3;
 
-  --color-brand-50: #fdf3ef;
-  --color-brand-100: #fae3da;
-  --color-brand-200: #f3c6b4;
-  --color-brand-300: #e7a184;
-  --color-brand-400: #d97b57;
-  --color-brand-500: #c55c36;
-  --color-brand-600: #a9482a;
-  --color-brand-700: #8a3a23;
-  --color-brand-800: #6b2e1e;
-  --color-brand-900: #4a2116;
+  /* Azul petróleo: acciones primarias. */
+  --color-brand-50: #eef7f9;
+  --color-brand-100: #d3ecf1;
+  --color-brand-200: #a6d7e1;
+  --color-brand-300: #6fb9c9;
+  --color-brand-400: #3d97ab;
+  --color-brand-500: #1a7d92;
+  --color-brand-600: #0e6b7d;
+  --color-brand-700: #0b5666;
+  --color-brand-800: #0a4451;
+  --color-brand-900: #08333d;
 
-  --color-sage-50: #eef5f0;
-  --color-sage-100: #d8e9df;
-  --color-sage-500: #4e8c6a;
-  --color-sage-600: #3c7255;
-  --color-sage-700: #2e5b43;
+  /* Verde: estados resueltos y pagados. */
+  --color-sage-50: #edf6f1;
+  --color-sage-100: #d3e9dd;
+  --color-sage-500: #3f8f68;
+  --color-sage-600: #2f7d5b;
+  --color-sage-700: #256348;
 
-  --shadow-card: 0 1px 2px rgb(36 28 22 / 0.05), 0 14px 30px -22px rgb(36 28 22 / 0.45);
-  --shadow-float: 0 20px 44px -26px rgb(36 28 22 / 0.55);
+  --shadow-card: 0 1px 2px rgb(27 36 38 / 0.05), 0 14px 30px -22px rgb(27 36 38 / 0.45);
+  --shadow-float: 0 20px 44px -26px rgb(27 36 38 / 0.55);
 }
 
 @layer base {
