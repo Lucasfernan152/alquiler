@@ -68,6 +68,10 @@ export function MorePage({
   onFocusHandled,
 }: Props) {
   const [sheet, setSheet] = useState<Sheet>(null);
+  /** Qué formulario está abierto dentro de la pantalla actual (detalle primero). */
+  const [editing, setEditing] = useState<
+    "contract" | "building" | "unit" | "tenant" | "contact" | "addUnit" | null
+  >(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -75,8 +79,23 @@ export function MorePage({
     if (!focusSheet) return;
     if (!property) return;
     setSheet(focusSheet);
+    setEditing(null);
     onFocusHandled?.();
   }, [focusSheet, property, onFocusHandled]);
+
+  useEffect(() => {
+    setEditing(null);
+  }, [sheet]);
+
+  function openSheet(next: Sheet) {
+    setEditing(null);
+    setSheet(next);
+  }
+
+  function closeSheet() {
+    setEditing(null);
+    setSheet(null);
+  }
 
   const isOwner = property?.role === "owner";
   const building = buildings.find((b) => b.id === property?.buildingId);
@@ -153,12 +172,14 @@ export function MorePage({
     e.preventDefault();
     if (!building) return;
     await run(
-      () =>
-        api.updateBuilding(building.id, {
+      async () => {
+        await api.updateBuilding(building.id, {
           name: buildingName,
           address: buildingAddress,
           city: buildingCity,
-        }),
+        });
+        setEditing(null);
+      },
       true,
     );
   }
@@ -167,7 +188,10 @@ export function MorePage({
     e.preventDefault();
     if (!property) return;
     await run(
-      () => api.updateProperty(property.id, { label: unitLabel, floor: unitFloor }),
+      async () => {
+        await api.updateProperty(property.id, { label: unitLabel, floor: unitFloor });
+        setEditing(null);
+      },
       true,
     );
   }
@@ -198,7 +222,7 @@ export function MorePage({
       setNewBuildingAddress("");
       setNewBuildingCity("");
       setNewBuildingUnit("");
-      setSheet(null);
+      closeSheet();
       onSelectProperty(unit.id);
     }, true);
   }
@@ -226,6 +250,7 @@ export function MorePage({
         sharePercentage: tenantShare,
       });
       setTenantEmail("");
+      setEditing(null);
     });
   }
 
@@ -239,7 +264,7 @@ export function MorePage({
         phone: profilePhone.trim(),
       });
       onUserUpdated(updated);
-      setSheet(null);
+      closeSheet();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Algo salió mal");
     } finally {
@@ -252,7 +277,7 @@ export function MorePage({
     const propertyId = property.id;
     await run(async () => {
       await api.createContract(propertyId, form);
-      setSheet(null);
+      setEditing(null);
     });
   }
 
@@ -268,6 +293,7 @@ export function MorePage({
       setContactCategory("");
       setContactName("");
       setContactPhone("");
+      setEditing(null);
     });
   }
 
@@ -283,13 +309,13 @@ export function MorePage({
                   icon={<BuildingIcon className="size-[18px]" />}
                   title={building?.name ?? property.building?.name ?? "Edificio"}
                   meta={building?.address ?? property.building?.address}
-                  onClick={() => setSheet("building")}
+                  onClick={() => openSheet("building")}
                 />
                 <ListRow
                   icon={<HomeIcon className="size-[18px]" />}
                   title={`Unidad ${property.label}`}
                   meta={property.floor ? `Piso ${property.floor}` : "Sin piso cargado"}
-                  onClick={() => setSheet("unit")}
+                  onClick={() => openSheet("unit")}
                 />
               </>
             )}
@@ -304,7 +330,7 @@ export function MorePage({
                     : "El dueño todavía no lo cargó"
               }
               value={contract ? money(contract.rentAmount) : undefined}
-              onClick={() => setSheet("contract")}
+              onClick={() => openSheet("contract")}
             />
             {isOwner && (
               <ListRow
@@ -315,7 +341,7 @@ export function MorePage({
                     ? tenants.map((t) => t.tenant?.name).filter(Boolean).join(", ")
                     : "Sin asignar"
                 }
-                onClick={() => setSheet("tenants")}
+                onClick={() => openSheet("tenants")}
               />
             )}
             {!isOwner && owner && (
@@ -335,14 +361,9 @@ export function MorePage({
               icon={<PhoneIcon className="size-[18px]" />}
               title="Contactos de emergencia"
               meta={contacts.length > 0 ? `${contacts.length} cargados` : "Ninguno cargado"}
-              onClick={() => setSheet("contacts")}
+              onClick={() => openSheet("contacts")}
             />
           </CardList>
-          {isOwner && (
-            <p className="mt-2 px-1 text-[13px] text-ink-400">
-              Para editar otra unidad, elegila en el selector de arriba.
-            </p>
-          )}
         </section>
       ) : (
         <section>
@@ -353,7 +374,7 @@ export function MorePage({
               title="Sin propiedades"
               description="Creá un edificio y agregale las unidades que alquilás. Si sos inquilino, pedile al dueño que te asigne con tu email."
               action={
-                <Button size="sm" onClick={() => setSheet("newBuilding")}>
+                <Button size="sm" onClick={() => openSheet("newBuilding")}>
                   Crear un edificio
                 </Button>
               }
@@ -386,7 +407,7 @@ export function MorePage({
             icon={<UserIcon className="size-[18px]" />}
             title={user.name}
             meta={user.phone ? `${user.phone} · ${user.email}` : user.email}
-            onClick={() => setSheet("profile")}
+            onClick={() => openSheet("profile")}
           />
           <ListRow
             icon={<LogoutIcon className="size-[18px]" />}
@@ -399,7 +420,7 @@ export function MorePage({
       <ErrorText>{error}</ErrorText>
 
       {sheet === "profile" && (
-        <Screen title="Tu perfil" onClose={() => setSheet(null)}>
+        <Screen title="Tu perfil" onClose={closeSheet}>
           <Card>
             <form className="space-y-4" onSubmit={saveProfile}>
               <Field label="Nombre">
@@ -435,37 +456,76 @@ export function MorePage({
       )}
 
       {sheet === "building" && building && (
-        <Screen title="Edificio" onClose={() => setSheet(null)}>
-          <Card>
-            <form className="space-y-4" onSubmit={saveBuilding}>
-              <Field label="Nombre">
-                <input
-                  className={inputClass}
-                  value={buildingName}
-                  onChange={(e) => setBuildingName(e.target.value)}
-                  required
-                />
-              </Field>
-              <Field label="Dirección">
-                <input
-                  className={inputClass}
-                  value={buildingAddress}
-                  onChange={(e) => setBuildingAddress(e.target.value)}
-                  required
-                />
-              </Field>
-              <Field label="Ciudad">
-                <input
-                  className={inputClass}
-                  value={buildingCity}
-                  onChange={(e) => setBuildingCity(e.target.value)}
-                />
-              </Field>
-              <Button block loading={busy}>
-                Guardar cambios
+        <Screen title="Edificio" onClose={closeSheet}>
+          {editing === "building" ? (
+            <Card>
+              <form className="space-y-4" onSubmit={saveBuilding}>
+                <Field label="Nombre">
+                  <input
+                    className={inputClass}
+                    value={buildingName}
+                    onChange={(e) => setBuildingName(e.target.value)}
+                    required
+                  />
+                </Field>
+                <Field label="Dirección">
+                  <input
+                    className={inputClass}
+                    value={buildingAddress}
+                    onChange={(e) => setBuildingAddress(e.target.value)}
+                    required
+                  />
+                </Field>
+                <Field label="Ciudad">
+                  <input
+                    className={inputClass}
+                    value={buildingCity}
+                    onChange={(e) => setBuildingCity(e.target.value)}
+                  />
+                </Field>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    block
+                    onClick={() => setEditing(null)}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button block loading={busy}>
+                    Guardar
+                  </Button>
+                </div>
+              </form>
+            </Card>
+          ) : (
+            <Card>
+              <p className="text-[13px] font-medium text-ink-500">Edificio</p>
+              <p className="mt-1 text-[22px] font-semibold leading-tight text-ink-900">
+                {building.name}
+              </p>
+              <div className="mt-4 divide-y divide-sand-200/70 rounded-xl bg-sand-50">
+                <div className="px-3.5 py-3">
+                  <p className="text-[12px] font-medium text-ink-400">Dirección</p>
+                  <p className="mt-0.5 text-[15px] text-ink-900">{building.address}</p>
+                </div>
+                <div className="px-3.5 py-3">
+                  <p className="text-[12px] font-medium text-ink-400">Ciudad</p>
+                  <p className="mt-0.5 text-[15px] text-ink-900">
+                    {building.city || "Sin ciudad"}
+                  </p>
+                </div>
+              </div>
+              <Button
+                className="mt-4"
+                block
+                variant="secondary"
+                onClick={() => setEditing("building")}
+              >
+                Editar edificio
               </Button>
-            </form>
-          </Card>
+            </Card>
+          )}
 
           <div>
             <SectionHeading title="Unidades de este edificio" />
@@ -482,25 +542,55 @@ export function MorePage({
                         .join(", ") || "Sin inquilinos"
                     }
                     right={
-                      unit.id === property?.id ? <Badge tone="brand">Actual</Badge> : undefined
+                      unit.id === property?.id ? (
+                        <Badge tone="brand">Actual</Badge>
+                      ) : undefined
                     }
                   />
                 ))}
               </div>
-              <form
-                className="flex gap-2 border-t border-sand-200/70 bg-sand-50/60 p-3"
-                onSubmit={addUnit}
-              >
-                <input
-                  className={inputClass}
-                  placeholder="Nueva unidad (3B)"
-                  value={newUnit}
-                  onChange={(e) => setNewUnit(e.target.value)}
-                />
-                <Button variant="secondary" loading={busy} className="shrink-0">
-                  Agregar
-                </Button>
-              </form>
+              {editing === "addUnit" ? (
+                <form
+                  className="space-y-3 border-t border-sand-200/70 bg-sand-50/60 p-3"
+                  onSubmit={async (e) => {
+                    await addUnit(e);
+                    setEditing(null);
+                  }}
+                >
+                  <Field label="Nueva unidad">
+                    <input
+                      className={inputClass}
+                      placeholder="3B"
+                      value={newUnit}
+                      onChange={(e) => setNewUnit(e.target.value)}
+                      required
+                    />
+                  </Field>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      block
+                      onClick={() => setEditing(null)}
+                    >
+                      Cancelar
+                    </Button>
+                    <Button block loading={busy}>
+                      Agregar
+                    </Button>
+                  </div>
+                </form>
+              ) : (
+                <div className="border-t border-sand-200/70 p-3">
+                  <Button
+                    variant="secondary"
+                    block
+                    onClick={() => setEditing("addUnit")}
+                  >
+                    Agregar unidad
+                  </Button>
+                </div>
+              )}
             </Card>
             <p className="mt-2 px-1 text-[13px] text-ink-400">
               Para editar una unidad, elegila en el selector y volvé acá.
@@ -508,7 +598,7 @@ export function MorePage({
           </div>
 
           <div className="flex justify-center pt-2">
-            <LinkButton onClick={() => setSheet("newBuilding")}>
+            <LinkButton onClick={() => openSheet("newBuilding")}>
               Crear otro edificio
             </LinkButton>
           </div>
@@ -516,30 +606,76 @@ export function MorePage({
       )}
 
       {sheet === "unit" && property && (
-        <Screen title={`Unidad ${property.label}`} onClose={() => setSheet(null)}>
-          <Card>
-            <form className="space-y-4" onSubmit={saveUnit}>
-              <Field label="Etiqueta" hint="Como la identificás: 3B, PB, Casa del fondo.">
-                <input
-                  className={inputClass}
-                  value={unitLabel}
-                  onChange={(e) => setUnitLabel(e.target.value)}
-                  required
-                />
-              </Field>
-              <Field label="Piso">
-                <input
-                  className={inputClass}
-                  value={unitFloor}
-                  onChange={(e) => setUnitFloor(e.target.value)}
-                  placeholder="3"
-                />
-              </Field>
-              <Button block loading={busy}>
-                Guardar cambios
+        <Screen title={`Unidad ${property.label}`} onClose={closeSheet}>
+          {editing === "unit" ? (
+            <Card>
+              <form className="space-y-4" onSubmit={saveUnit}>
+                <Field
+                  label="Etiqueta"
+                  hint="Como la identificás: 3B, PB, Casa del fondo."
+                >
+                  <input
+                    className={inputClass}
+                    value={unitLabel}
+                    onChange={(e) => setUnitLabel(e.target.value)}
+                    required
+                  />
+                </Field>
+                <Field label="Piso">
+                  <input
+                    className={inputClass}
+                    value={unitFloor}
+                    onChange={(e) => setUnitFloor(e.target.value)}
+                    placeholder="3"
+                  />
+                </Field>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    block
+                    onClick={() => setEditing(null)}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button block loading={busy}>
+                    Guardar
+                  </Button>
+                </div>
+              </form>
+            </Card>
+          ) : (
+            <Card>
+              <p className="text-[13px] font-medium text-ink-500">Unidad</p>
+              <p className="mt-1 text-[22px] font-semibold leading-tight text-ink-900">
+                {property.label}
+              </p>
+              <div className="mt-4 divide-y divide-sand-200/70 rounded-xl bg-sand-50">
+                <div className="px-3.5 py-3">
+                  <p className="text-[12px] font-medium text-ink-400">Piso</p>
+                  <p className="mt-0.5 text-[15px] text-ink-900">
+                    {property.floor || "Sin piso cargado"}
+                  </p>
+                </div>
+                <div className="px-3.5 py-3">
+                  <p className="text-[12px] font-medium text-ink-400">Facturas</p>
+                  <p className="mt-0.5 text-[15px] text-ink-900">
+                    {property.billSplitMode === "split_by_percentage"
+                      ? "Se dividen por porcentaje"
+                      : "Las paga el inquilino"}
+                  </p>
+                </div>
+              </div>
+              <Button
+                className="mt-4"
+                block
+                variant="secondary"
+                onClick={() => setEditing("unit")}
+              >
+                Editar unidad
               </Button>
-            </form>
-          </Card>
+            </Card>
+          )}
 
           <Card>
             <p className="mb-3 text-[15px] font-semibold text-ink-900">
@@ -549,7 +685,9 @@ export function MorePage({
               className={inputClass}
               value={property.billSplitMode}
               onChange={(e) =>
-                run(() => api.updateProperty(property.id, { billSplitMode: e.target.value }))
+                run(() =>
+                  api.updateProperty(property.id, { billSplitMode: e.target.value }),
+                )
               }
             >
               <option value="tenant_pays_all">Las paga todas el inquilino</option>
@@ -560,7 +698,7 @@ export function MorePage({
       )}
 
       {sheet === "newBuilding" && (
-        <Screen title="Nuevo edificio" onClose={() => setSheet(null)}>
+        <Screen title="Nuevo edificio" onClose={closeSheet}>
           <Card>
             <form className="space-y-4" onSubmit={createBuilding}>
               <Field label="Nombre">
@@ -640,66 +778,16 @@ export function MorePage({
       )}
 
       {sheet === "contract" && property && (
-        <Screen title="Contrato" onClose={() => setSheet(null)}>
-          {contract ? (
+        <Screen title="Contrato" onClose={closeSheet}>
+          {editing === "contract" ? (
             <Card>
-              <p className="text-[13px] font-medium text-ink-500">Alquiler mensual</p>
-              <p className="amount mt-1 text-[28px] leading-none text-ink-900">
-                {money(contract.rentAmount)}
-              </p>
-              <div className="mt-4 space-y-1 text-sm text-ink-500">
-                <p>Inicio: {longDate(contract.startDate)}</p>
-                <p>Aumenta cada {contract.increaseEveryMonths} meses</p>
-                {contract.nextIncreaseDate && (
-                  <p>Próximo aumento: {longDate(contract.nextIncreaseDate)}</p>
-                )}
-                <p>
-                  Facturas:{" "}
-                  {property.billSplitMode === "split_by_percentage"
-                    ? "se dividen por porcentaje"
-                    : "las paga el inquilino"}
-                </p>
-                {requiredInvoiceTypes(property).length > 0 && (
-                  <p>
-                    Facturas obligatorias: {requiredInvoiceTypes(property).join(" · ")}
-                  </p>
-                )}
-              </div>
-              {contract.filePath && (
-                <a
-                  className="mt-4 inline-flex items-center gap-2 text-[13px] font-semibold text-brand-600"
-                  href={api.fileUrl(contract.filePath)}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  <FileIcon className="size-4" />
-                  {contract.fileName ?? "Abrir archivo"}
-                </a>
-              )}
-            </Card>
-          ) : (
-            <Card>
-              <EmptyState
-                icon={<FileIcon className="size-5" />}
-                title="Sin contrato cargado"
-                description={
-                  isOwner
-                    ? "Cargá el monto y el archivo del contrato."
-                    : "El dueño todavía no subió el contrato."
-                }
-              />
-            </Card>
-          )}
-
-          {isOwner && (
-            <Card>
-              <p className="text-[15px] font-semibold text-ink-900">
+              <p className="mb-3 text-[15px] font-semibold text-ink-900">
                 {contract ? "Editar contrato" : "Cargar contrato"}
               </p>
               {contract && (
-                <p className="mt-1 mb-3 text-[13px] text-ink-500">
-                  Está cargado lo que dice el contrato vigente. Cambiá sólo lo que haga
-                  falta.
+                <p className="mb-3 text-[13px] text-ink-500">
+                  Está cargado lo que dice el contrato vigente. Cambiá sólo lo que
+                  haga falta.
                 </p>
               )}
               <ContractForm
@@ -709,13 +797,104 @@ export function MorePage({
                 busy={busy}
                 onSubmit={saveContract}
               />
+              <Button
+                className="mt-3"
+                type="button"
+                variant="secondary"
+                block
+                onClick={() => setEditing(null)}
+              >
+                Cancelar
+              </Button>
+            </Card>
+          ) : contract ? (
+            <>
+              <Card>
+                <p className="text-[13px] font-medium text-ink-500">Alquiler mensual</p>
+                <p className="amount mt-1 text-[32px] leading-none text-ink-900">
+                  {money(contract.rentAmount)}
+                </p>
+                <div className="mt-5 divide-y divide-sand-200/70 rounded-xl bg-sand-50">
+                  <div className="flex justify-between gap-3 px-3.5 py-3">
+                    <span className="text-[13px] text-ink-500">Inicio</span>
+                    <span className="text-right text-[14px] font-medium text-ink-900">
+                      {longDate(contract.startDate)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between gap-3 px-3.5 py-3">
+                    <span className="text-[13px] text-ink-500">Aumento</span>
+                    <span className="text-right text-[14px] font-medium text-ink-900">
+                      Cada {contract.increaseEveryMonths} meses
+                    </span>
+                  </div>
+                  {contract.nextIncreaseDate && (
+                    <div className="flex justify-between gap-3 px-3.5 py-3">
+                      <span className="text-[13px] text-ink-500">Próximo aumento</span>
+                      <span className="text-right text-[14px] font-medium text-ink-900">
+                        {longDate(contract.nextIncreaseDate)}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex justify-between gap-3 px-3.5 py-3">
+                    <span className="text-[13px] text-ink-500">Facturas</span>
+                    <span className="text-right text-[14px] font-medium text-ink-900">
+                      {property.billSplitMode === "split_by_percentage"
+                        ? "Se dividen por %"
+                        : "Las paga el inquilino"}
+                    </span>
+                  </div>
+                  {currentRequired.length > 0 && (
+                    <div className="px-3.5 py-3">
+                      <p className="text-[13px] text-ink-500">Facturas obligatorias</p>
+                      <p className="mt-1 text-[14px] font-medium text-ink-900">
+                        {currentRequired.join(" · ")}
+                      </p>
+                    </div>
+                  )}
+                </div>
+                {contract.filePath && (
+                  <a
+                    className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-sand-200 bg-white px-4 py-3 text-[14px] font-semibold text-brand-600"
+                    href={api.fileUrl(contract.filePath)}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <FileIcon className="size-4" />
+                    {contract.fileName ?? "Ver archivo del contrato"}
+                  </a>
+                )}
+              </Card>
+              {isOwner && (
+                <Button block onClick={() => setEditing("contract")}>
+                  Editar contrato
+                </Button>
+              )}
+            </>
+          ) : (
+            <Card>
+              <EmptyState
+                icon={<FileIcon className="size-5" />}
+                title="Sin contrato cargado"
+                description={
+                  isOwner
+                    ? "Cargá el monto, la fecha de inicio y el archivo."
+                    : "El dueño todavía no subió el contrato."
+                }
+                action={
+                  isOwner ? (
+                    <Button size="sm" onClick={() => setEditing("contract")}>
+                      Cargar contrato
+                    </Button>
+                  ) : undefined
+                }
+              />
             </Card>
           )}
         </Screen>
       )}
 
       {sheet === "tenants" && property && (
-        <Screen title="Inquilinos" onClose={() => setSheet(null)}>
+        <Screen title="Inquilinos" onClose={closeSheet}>
           {tenants.length > 0 ? (
             <CardList>
               {tenants.map((tenancy) => (
@@ -761,42 +940,60 @@ export function MorePage({
             </Card>
           )}
 
-          <Card>
-            <p className="mb-3 text-[15px] font-semibold text-ink-900">Agregar inquilino</p>
-            <form className="space-y-4" onSubmit={addTenant}>
-              <Field label="Email" hint="Tiene que estar registrado en la app.">
-                <input
-                  className={inputClass}
-                  type="email"
-                  value={tenantEmail}
-                  onChange={(e) => setTenantEmail(e.target.value)}
-                  placeholder="inquilino@email.com"
-                  required
-                />
-              </Field>
-              <Field
-                label="Porcentaje de las facturas"
-                hint="El alquiler lo paga completo; el porcentaje divide sólo las facturas."
-              >
-                <input
-                  className={inputClass}
-                  type="number"
-                  min={0}
-                  max={100}
-                  value={tenantShare}
-                  onChange={(e) => setTenantShare(Number(e.target.value))}
-                />
-              </Field>
-              <Button block loading={busy}>
-                Asignar
-              </Button>
-            </form>
-          </Card>
+          {editing === "tenant" ? (
+            <Card>
+              <p className="mb-3 text-[15px] font-semibold text-ink-900">
+                Agregar inquilino
+              </p>
+              <form className="space-y-4" onSubmit={addTenant}>
+                <Field label="Email" hint="Tiene que estar registrado en la app.">
+                  <input
+                    className={inputClass}
+                    type="email"
+                    value={tenantEmail}
+                    onChange={(e) => setTenantEmail(e.target.value)}
+                    placeholder="inquilino@email.com"
+                    required
+                  />
+                </Field>
+                <Field
+                  label="Porcentaje de las facturas"
+                  hint="El alquiler lo paga completo; el porcentaje divide sólo las facturas."
+                >
+                  <input
+                    className={inputClass}
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={tenantShare}
+                    onChange={(e) => setTenantShare(Number(e.target.value))}
+                  />
+                </Field>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    block
+                    onClick={() => setEditing(null)}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button block loading={busy}>
+                    Asignar
+                  </Button>
+                </div>
+              </form>
+            </Card>
+          ) : (
+            <Button block variant="secondary" onClick={() => setEditing("tenant")}>
+              Agregar inquilino
+            </Button>
+          )}
         </Screen>
       )}
 
       {sheet === "contacts" && property && (
-        <Screen title="Contactos de emergencia" onClose={() => setSheet(null)}>
+        <Screen title="Contactos de emergencia" onClose={closeSheet}>
           {contacts.length > 0 ? (
             <CardList>
               {contacts.map((contact) => (
@@ -810,7 +1007,9 @@ export function MorePage({
                       <LinkButton
                         tone="danger"
                         onClick={() =>
-                          run(() => api.deleteEmergencyContact(property.id, contact.id))
+                          run(() =>
+                            api.deleteEmergencyContact(property.id, contact.id),
+                          )
                         }
                       >
                         Quitar
@@ -837,45 +1036,63 @@ export function MorePage({
             </Card>
           )}
 
-          {isOwner && (
-            <Card>
-              <p className="mb-3 text-[15px] font-semibold text-ink-900">Agregar contacto</p>
-              <form className="space-y-4" onSubmit={addContact}>
-                <Field label="Rubro">
-                  <input
-                    className={inputClass}
-                    value={contactCategory}
-                    onChange={(e) => setContactCategory(e.target.value)}
-                    placeholder="Electricidad"
-                    required
-                  />
-                </Field>
-                <Field label="Nombre">
-                  <input
-                    className={inputClass}
-                    value={contactName}
-                    onChange={(e) => setContactName(e.target.value)}
-                    placeholder="Juan Pérez"
-                    required
-                  />
-                </Field>
-                <Field label="Teléfono">
-                  <input
-                    className={inputClass}
-                    value={contactPhone}
-                    onChange={(e) => setContactPhone(e.target.value)}
-                    placeholder="11 5555 0101"
-                    required
-                  />
-                </Field>
-                <Button block loading={busy}>
-                  Guardar contacto
-                </Button>
-              </form>
-            </Card>
-          )}
+          {isOwner &&
+            (editing === "contact" ? (
+              <Card>
+                <p className="mb-3 text-[15px] font-semibold text-ink-900">
+                  Agregar contacto
+                </p>
+                <form className="space-y-4" onSubmit={addContact}>
+                  <Field label="Rubro">
+                    <input
+                      className={inputClass}
+                      value={contactCategory}
+                      onChange={(e) => setContactCategory(e.target.value)}
+                      placeholder="Electricidad"
+                      required
+                    />
+                  </Field>
+                  <Field label="Nombre">
+                    <input
+                      className={inputClass}
+                      value={contactName}
+                      onChange={(e) => setContactName(e.target.value)}
+                      placeholder="Juan Pérez"
+                      required
+                    />
+                  </Field>
+                  <Field label="Teléfono">
+                    <input
+                      className={inputClass}
+                      value={contactPhone}
+                      onChange={(e) => setContactPhone(e.target.value)}
+                      placeholder="11 5555 0101"
+                      required
+                    />
+                  </Field>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      block
+                      onClick={() => setEditing(null)}
+                    >
+                      Cancelar
+                    </Button>
+                    <Button block loading={busy}>
+                      Guardar
+                    </Button>
+                  </div>
+                </form>
+              </Card>
+            ) : (
+              <Button block variant="secondary" onClick={() => setEditing("contact")}>
+                Agregar contacto
+              </Button>
+            ))}
         </Screen>
       )}
+
     </div>
   );
 }
