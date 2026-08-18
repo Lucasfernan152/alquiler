@@ -258,7 +258,7 @@ function AppShell({ user, onLogout }: { user: User; onLogout: () => void }) {
         </div>
       )}
 
-      <BottomNav tab={tab} unread={unread} onChange={goToTab} />
+      <BottomNav tab={tab} onChange={goToTab} />
     </div>
   );
 }
