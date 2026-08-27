@@ -7,10 +7,6 @@ Gestión de propiedades alquiladas para dueños e inquilinos.
 - **Móvil:** Capacitor (Android / iOS) apuntando a la API en la nube
 - **Archivos:** Vercel Blob en prod / disco local en dev
 
-## Deploy en la nube
-
-Seguí la guía completa: **[DEPLOY.md](./DEPLOY.md)** (Neon + 2 proyectos Vercel + Blob + APK).
-
 ## Setup local
 
 Necesitás una `DATABASE_URL` de Postgres (Neon free alcanza también para local).
@@ -62,15 +58,3 @@ npm run build
 npx cap sync android
 cd android && ./gradlew assembleDebug
 ```
-
-Detalle en [DEPLOY.md](./DEPLOY.md) paso 7.
-
-## Scripts útiles
-
-| Dónde | Comando | Qué hace |
-|---|---|---|
-| backend | `npm run dev` | API local con reload |
-| frontend | `npm run dev` | Web + proxy `/api` → `:3001` |
-| frontend | `npm run build` | Build para Capacitor / Vercel |
-| backend | `npx prisma studio` | Explorar DB |
-| backend | `npx prisma db push` | Sincronizar schema a Neon |
