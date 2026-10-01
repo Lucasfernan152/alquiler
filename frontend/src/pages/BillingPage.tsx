@@ -29,7 +29,7 @@ import {
   money,
   shortDate,
 } from "../components/ui";
-import type { Payment, Property } from "../types";
+import type { Invoice, Payment, Property } from "../types";
 
 type Props = {
   property: Property | null;
@@ -68,6 +68,7 @@ export function BillingPage({
   const [invoiceType, setInvoiceType] = useState("Expensas");
   const [invoiceAmount, setInvoiceAmount] = useState("");
   const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
+  const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
 
   const [payAmount, setPayAmount] = useState("");
   const [payFile, setPayFile] = useState<File | null>(null);
@@ -170,7 +171,30 @@ export function BillingPage({
     }
   }
 
-  async function addInvoice(e: FormEvent) {
+  function closeInvoiceSheet() {
+    setSheet(null);
+    setEditingInvoice(null);
+    setInvoiceAmount("");
+    setInvoiceFile(null);
+  }
+
+  function openAddInvoice(type?: string) {
+    setEditingInvoice(null);
+    setInvoiceAmount("");
+    setInvoiceFile(null);
+    if (type) setInvoiceType(type);
+    setSheet("invoice");
+  }
+
+  function openEditInvoice(invoice: Invoice) {
+    setEditingInvoice(invoice);
+    setInvoiceType(invoice.type);
+    setInvoiceAmount(String(invoice.amount));
+    setInvoiceFile(null);
+    setSheet("invoice");
+  }
+
+  async function saveInvoice(e: FormEvent) {
     e.preventDefault();
     if (!period) return;
     const form = new FormData();
@@ -179,12 +203,29 @@ export function BillingPage({
     if (invoiceFile) form.append("file", invoiceFile);
     await run(
       async () => {
-        await api.addInvoice(period.id, form);
-        setInvoiceAmount("");
-        setInvoiceFile(null);
-        setSheet(null);
+        if (editingInvoice) {
+          await api.updateInvoice(period.id, editingInvoice.id, form);
+        } else {
+          await api.addInvoice(period.id, form);
+        }
+        closeInvoiceSheet();
       },
-      { success: "Factura cargada" },
+      { success: editingInvoice ? "Factura actualizada" : "Factura cargada" },
+    );
+  }
+
+  async function removeInvoice() {
+    if (!period || !editingInvoice) return;
+    const ok = window.confirm(
+      `¿Borrar la factura de ${editingInvoice.type}? Esta acción no se puede deshacer.`,
+    );
+    if (!ok) return;
+    await run(
+      async () => {
+        await api.deleteInvoice(period.id, editingInvoice.id);
+        closeInvoiceSheet();
+      },
+      { success: "Factura borrada" },
     );
   }
 
@@ -210,6 +251,42 @@ export function BillingPage({
     period &&
     (period.status === "ready" || period.status === "settled") &&
     !payments.some((p) => p.status === "pending");
+  const canEditInvoices =
+    isOwner &&
+    period != null &&
+    !payments.some((p) => p.status === "pending" || p.status === "approved");
+
+  function invoiceRight(invoice: Invoice) {
+    return (
+      <div className="flex shrink-0 items-center gap-1">
+        {invoice.filePath ? (
+          <a
+            href={api.fileUrl(invoice.filePath)}
+            target="_blank"
+            rel="noreferrer"
+            download={invoice.fileName ?? true}
+            className="flex size-9 items-center justify-center rounded-full bg-sand-100 text-ink-700 transition active:bg-sand-200"
+            aria-label={`Descargar ${invoice.type}`}
+          >
+            <DownloadIcon className="size-[18px]" />
+          </a>
+        ) : !canEditInvoices ? (
+          <span className="flex size-7 items-center justify-center rounded-full bg-sage-50 text-sage-600">
+            <CheckIcon className="size-4" />
+          </span>
+        ) : null}
+        {canEditInvoices && (
+          <button
+            type="button"
+            className="rounded-full px-2.5 py-1.5 text-[13px] font-semibold text-brand-700 transition active:bg-sand-100"
+            onClick={() => openEditInvoice(invoice)}
+          >
+            Editar
+          </button>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -315,24 +392,7 @@ export function BillingPage({
                         title={uploaded.type}
                         meta={row.meta}
                         value={row.value}
-                        right={
-                          uploaded.filePath ? (
-                            <a
-                              href={api.fileUrl(uploaded.filePath)}
-                              target="_blank"
-                              rel="noreferrer"
-                              download={uploaded.fileName ?? true}
-                              className="flex size-9 items-center justify-center rounded-full bg-sand-100 text-ink-700 transition active:bg-sand-200"
-                              aria-label={`Descargar ${uploaded.type}`}
-                            >
-                              <DownloadIcon className="size-[18px]" />
-                            </a>
-                          ) : (
-                            <span className="flex size-7 items-center justify-center rounded-full bg-sage-50 text-sage-600">
-                              <CheckIcon className="size-4" />
-                            </span>
-                          )
-                        }
+                        right={invoiceRight(uploaded)}
                       />
                     );
                   }
@@ -343,12 +403,7 @@ export function BillingPage({
                       meta="Falta cargar"
                       right={<Badge tone="warn">Pendiente</Badge>}
                       onClick={
-                        isOwner && period.status === "collecting"
-                          ? () => {
-                              setInvoiceType(type);
-                              setSheet("invoice");
-                            }
-                          : undefined
+                        canEditInvoices ? () => openAddInvoice(type) : undefined
                       }
                     />
                   );
@@ -369,20 +424,7 @@ export function BillingPage({
                       title={invoice.type}
                       meta={row.meta}
                       value={row.value}
-                      right={
-                        invoice.filePath ? (
-                          <a
-                            href={api.fileUrl(invoice.filePath)}
-                            target="_blank"
-                            rel="noreferrer"
-                            download={invoice.fileName ?? true}
-                            className="flex size-9 items-center justify-center rounded-full bg-sand-100 text-ink-700 transition active:bg-sand-200"
-                            aria-label={`Descargar ${invoice.type}`}
-                          >
-                            <DownloadIcon className="size-[18px]" />
-                          </a>
-                        ) : undefined
-                      }
+                      right={invoiceRight(invoice)}
                     />
                     );
                   })}
@@ -407,27 +449,21 @@ export function BillingPage({
               </div>
             )}
 
-            {(isOwner ? period.status === "collecting" : true) && (
+            {(canEditInvoices || !isOwner) && (
               <div className="space-y-2 border-t border-sand-200/70 bg-sand-50/60 p-3">
-                {isOwner && missing.length > 0 && (
+                {canEditInvoices && missing.length > 0 && (
                   <p className="text-[13px] text-ink-500">
                     Faltan: {missing.join(", ")}. Cuando subas la última, avisamos
                     solos al inquilino.
                   </p>
                 )}
-                {isOwner && missing.length === 0 && required.length === 0 && (
+                {canEditInvoices && missing.length === 0 && required.length === 0 && (
                   <p className="text-[13px] text-ink-500">
                     Al guardar una factura avisamos solos al inquilino.
                   </p>
                 )}
-                {isOwner && (
-                  <Button
-                    block
-                    onClick={() => {
-                      if (missing[0]) setInvoiceType(missing[0]);
-                      setSheet("invoice");
-                    }}
-                  >
+                {canEditInvoices && (
+                  <Button block onClick={() => openAddInvoice(missing[0])}>
                     Agregar factura
                   </Button>
                 )}
@@ -552,11 +588,23 @@ export function BillingPage({
       )}
 
       {sheet === "invoice" && period && (
-        <Screen title="Agregar factura" onClose={() => setSheet(null)}>
+        <Screen
+          title={editingInvoice ? "Editar factura" : "Agregar factura"}
+          onClose={closeInvoiceSheet}
+        >
           <Card>
-            <form className="space-y-4" onSubmit={addInvoice}>
+            <form className="space-y-4" onSubmit={saveInvoice}>
               <Field label="Tipo">
-                {required.length > 0 ? (
+                {editingInvoice || required.length === 0 ? (
+                  <input
+                    className={inputClass}
+                    value={invoiceType}
+                    onChange={(e) => setInvoiceType(e.target.value)}
+                    placeholder="Expensas, luz, gas…"
+                    required
+                    disabled={Boolean(editingInvoice)}
+                  />
+                ) : (
                   <select
                     className={inputClass}
                     value={invoiceType}
@@ -584,14 +632,6 @@ export function BillingPage({
                     <option value="Expensas">Otra: Expensas</option>
                     <option value="Otro">Otro</option>
                   </select>
-                ) : (
-                  <input
-                    className={inputClass}
-                    value={invoiceType}
-                    onChange={(e) => setInvoiceType(e.target.value)}
-                    placeholder="Expensas, luz, gas…"
-                    required
-                  />
                 )}
               </Field>
               <Field
@@ -636,7 +676,14 @@ export function BillingPage({
                   )}
                 </div>
               )}
-              <Field label="Archivo" hint="PDF o foto de la factura. Es opcional.">
+              <Field
+                label="Archivo"
+                hint={
+                  editingInvoice?.fileName
+                    ? `Actual: ${editingInvoice.fileName}. Subí otro archivo para reemplazarlo.`
+                    : "PDF o foto de la factura. Es opcional."
+                }
+              >
                 <input
                   className={inputClass}
                   type="file"
@@ -644,8 +691,19 @@ export function BillingPage({
                 />
               </Field>
               <Button block loading={busy}>
-                Guardar factura
+                {editingInvoice ? "Guardar cambios" : "Guardar factura"}
               </Button>
+              {editingInvoice && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  block
+                  loading={busy}
+                  onClick={removeInvoice}
+                >
+                  Borrar factura
+                </Button>
+              )}
             </form>
           </Card>
         </Screen>

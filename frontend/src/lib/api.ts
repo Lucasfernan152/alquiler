@@ -277,6 +277,17 @@ export const api = {
       body: form,
     });
   },
+  updateInvoice(periodId: string, invoiceId: string, form: FormData) {
+    return request(`/api/billing/periods/${periodId}/invoices/${invoiceId}`, {
+      method: "PATCH",
+      body: form,
+    });
+  },
+  deleteInvoice(periodId: string, invoiceId: string) {
+    return request(`/api/billing/periods/${periodId}/invoices/${invoiceId}`, {
+      method: "DELETE",
+    });
+  },
   submitPayment(periodId: string, form: FormData) {
     return request(`/api/payments/periods/${periodId}`, {
       method: "POST",

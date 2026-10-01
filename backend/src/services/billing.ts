@@ -333,6 +333,139 @@ export async function maybeAutoMarkPeriodReady(periodId: string, ownerId: string
   return markPeriodReady(periodId, ownerId);
 }
 
+async function loadEditablePeriod(periodId: string, ownerId: string) {
+  const period = await prisma.billingPeriod.findUnique({
+    where: { id: periodId },
+    include: {
+      invoices: true,
+      payments: { select: { status: true } },
+      property: {
+        include: {
+          contracts: { where: { active: true }, take: 1 },
+        },
+      },
+    },
+  });
+  if (!period) throw new AppError(404, "Período no encontrado");
+  await assertPropertyOwner(period.propertyId, ownerId);
+  if (period.payments.some((p) => p.status === "pending" || p.status === "approved")) {
+    throw new AppError(
+      400,
+      "No se pueden cambiar facturas después de que el inquilino subió el pago",
+    );
+  }
+  if (period.status === "settled") {
+    throw new AppError(400, "No se pueden cambiar facturas de un período ya pagado");
+  }
+  return period;
+}
+
+async function reopenPeriodIfIncomplete(periodId: string) {
+  const period = await prisma.billingPeriod.findUnique({
+    where: { id: periodId },
+    include: {
+      invoices: { select: { type: true } },
+      property: {
+        include: { contracts: { where: { active: true }, take: 1 } },
+      },
+    },
+  });
+  if (!period || period.status !== "ready") return;
+  const required = parseRequiredInvoiceTypes(
+    period.property.contracts[0]?.requiredInvoiceTypes,
+  );
+  const missing = missingRequiredInvoices(
+    required,
+    period.invoices.map((i) => i.type),
+  );
+  const incomplete =
+    missing.length > 0 || (required.length === 0 && period.invoices.length === 0);
+  if (!incomplete) return;
+  await prisma.billingPeriod.update({
+    where: { id: periodId },
+    data: { status: "collecting", readyAt: null },
+  });
+}
+
+export type InvoiceFile = { filePath: string; fileName: string };
+
+export async function addOrReplaceInvoice(
+  periodId: string,
+  ownerId: string,
+  data: {
+    type: string;
+    amount: number;
+    notes?: string;
+    file?: InvoiceFile | null;
+  },
+) {
+  const period = await loadEditablePeriod(periodId, ownerId);
+  const existing = period.invoices.find(
+    (invoice) => invoice.type.trim().toLowerCase() === data.type.trim().toLowerCase(),
+  );
+  const fileFields = data.file
+    ? { filePath: data.file.filePath, fileName: data.file.fileName }
+    : {};
+
+  if (existing) {
+    return prisma.invoice.update({
+      where: { id: existing.id },
+      data: {
+        type: data.type,
+        amount: data.amount,
+        notes: data.notes ?? existing.notes,
+        ...fileFields,
+      },
+    });
+  }
+
+  return prisma.invoice.create({
+    data: {
+      billingPeriodId: period.id,
+      type: data.type,
+      amount: data.amount,
+      notes: data.notes ?? "",
+      ...fileFields,
+    },
+  });
+}
+
+export async function updateInvoice(
+  periodId: string,
+  invoiceId: string,
+  ownerId: string,
+  data: {
+    type?: string;
+    amount?: number;
+    notes?: string;
+    file?: InvoiceFile | null;
+  },
+) {
+  const period = await loadEditablePeriod(periodId, ownerId);
+  const invoice = period.invoices.find((item) => item.id === invoiceId);
+  if (!invoice) throw new AppError(404, "Factura no encontrada");
+
+  return prisma.invoice.update({
+    where: { id: invoice.id },
+    data: {
+      ...(data.type !== undefined ? { type: data.type } : {}),
+      ...(data.amount !== undefined ? { amount: data.amount } : {}),
+      ...(data.notes !== undefined ? { notes: data.notes } : {}),
+      ...(data.file
+        ? { filePath: data.file.filePath, fileName: data.file.fileName }
+        : {}),
+    },
+  });
+}
+
+export async function deleteInvoice(periodId: string, invoiceId: string, ownerId: string) {
+  const period = await loadEditablePeriod(periodId, ownerId);
+  const invoice = period.invoices.find((item) => item.id === invoiceId);
+  if (!invoice) throw new AppError(404, "Factura no encontrada");
+  await prisma.invoice.delete({ where: { id: invoice.id } });
+  await reopenPeriodIfIncomplete(periodId);
+}
+
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 /** El inquilino debería pagar el 1° del mes siguiente al período. */
 export function paymentDueDate(year: number, month: number) {
